@@ -802,6 +802,24 @@ type WorkflowUpdateHandle interface {
 	Get(ctx context.Context, valuePtr interface{}) error
 }
 
+// TODO: documentation
+type WorkflowUpdateWithStartHandle interface {
+	// WorkflowID observes the update's workflow ID.
+	WorkflowID() string
+
+	// RunID observes the update's run ID.
+	RunID() string
+
+	// UpdateID observes the update's ID.
+	UpdateID() string
+
+	// GetUpdate blocks on the outcome of the update.
+	GetUpdate(ctx context.Context, valuePtr interface{}) error
+
+	// TODO: documentation
+	GetWorkflow(ctx context.Context, valuePtr interface{}) error
+}
+
 // GetWorkflowUpdateHandleOptions encapsulates the parameters needed to unambiguously
 // refer to a Workflow Update.
 // NOTE: Experimental
@@ -826,6 +844,11 @@ type completedUpdateHandle struct {
 	baseUpdateHandle
 	value converter.EncodedValue
 	err   error
+}
+
+// TODO: documentation
+type completedUpdateWithStartHandle struct {
+	completedUpdateHandle
 }
 
 // lazyUpdateHandle represents and update that is not known to have completed
@@ -1055,6 +1078,38 @@ func (wc *WorkflowClient) UpdateWorkflowWithOptions(
 		RunID:               req.RunID,
 		FirstExecutionRunID: req.FirstExecutionRunID,
 		WaitPolicy:          req.WaitPolicy,
+	})
+}
+
+func (wc *WorkflowClient) UpdateWithStartWorkflow(
+	ctx context.Context,
+	req UpdateWorkflowWithOptionsRequest,
+	workflowOptions StartWorkflowOptions,
+	workflow interface{},
+	workflowArgs ...interface{},
+) (WorkflowUpdateWithStartHandle, error) {
+	if err := wc.ensureInitialized(); err != nil {
+		return nil, err
+	}
+
+	// Default update ID
+	updateID := req.UpdateID
+	if updateID == "" {
+		updateID = uuid.New()
+	}
+
+	ctx = contextWithNewHeader(ctx)
+	return wc.interceptor.UpdateWithStartWorkflow(ctx, &ClientUpdateWithStartWorkflowInput{
+		StartOptions: nil, // TODO
+		UpdateInput: &ClientUpdateWorkflowInput{
+			UpdateID:            updateID,
+			WorkflowID:          req.WorkflowID,
+			UpdateName:          req.UpdateName,
+			Args:                req.Args,
+			RunID:               req.RunID,
+			FirstExecutionRunID: req.FirstExecutionRunID,
+			WaitPolicy:          req.WaitPolicy,
+		},
 	})
 }
 
@@ -1854,6 +1909,71 @@ func (w *workflowClientInterceptor) UpdateWorkflow(
 	return nil, fmt.Errorf("unsupported outcome type %T", resp.GetOutcome().GetValue())
 }
 
+// TODO refactor to re-use code
+func (w *workflowClientInterceptor) UpdateWithStartWorkflow(
+	ctx context.Context,
+	in *ClientUpdateWithStartWorkflowInput,
+) (WorkflowUpdateWithStartHandle, error) {
+
+	// FROM UpdateWorkflow
+
+	argPayloads, err := w.client.dataConverter.ToPayloads(in.UpdateInput.Args...)
+	if err != nil {
+		return nil, err
+	}
+	header, err := headerPropagated(ctx, w.client.contextPropagators)
+	if err != nil {
+		return nil, err
+	}
+	grpcCtx, cancel := newGRPCContext(ctx, grpcTimeout(pollUpdateTimeout), grpcLongPoll(true), defaultGrpcRetryParameters(ctx))
+	defer cancel()
+	wfexec := &commonpb.WorkflowExecution{
+		WorkflowId: in.UpdateInput.WorkflowID,
+		RunId:      in.UpdateInput.RunID,
+	}
+	resp, err := w.client.workflowService.UpdateWithStartWorkflowExecution(grpcCtx, &workflowservice.UpdateWithStartWorkflowExecutionRequest{
+		// TODO: Start
+		Update: &workflowservice.UpdateWorkflowExecutionRequest{
+			WaitPolicy:          in.UpdateInput.WaitPolicy,
+			Namespace:           w.client.namespace,
+			WorkflowExecution:   wfexec,
+			FirstExecutionRunId: in.UpdateInput.FirstExecutionRunID,
+			Request: &updatepb.Request{
+				Meta: &updatepb.Meta{
+					UpdateId: in.UpdateInput.UpdateID,
+					Identity: w.client.identity,
+				},
+				Input: &updatepb.Input{
+					Header: header,
+					Name:   in.UpdateInput.UpdateName,
+					Args:   argPayloads,
+				},
+			},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	switch v := resp.GetUpdateResponse().GetOutcome().GetValue().(type) {
+	case nil:
+		panic("async update not implemented yet")
+	case *updatepb.Outcome_Failure:
+		return &completedUpdateWithStartHandle{
+			completedUpdateHandle: completedUpdateHandle{
+				err:              w.client.failureConverter.FailureToError(v.Failure),
+				baseUpdateHandle: baseUpdateHandle{ref: resp.UpdateResponse.GetUpdateRef()},
+			},
+		}, nil
+		//case *updatepb.Outcome_Success:
+		//	return &completedUpdateHandle{
+		//		value:            newEncodedValue(v.Success, w.client.dataConverter),
+		//		baseUpdateHandle: baseUpdateHandle{ref: resp.UpdateResponse.GetUpdateRef()},
+		//	}, nil
+	}
+	return nil, fmt.Errorf("unsupported outcome type %T", resp.GetUpdateResponse().GetOutcome().GetValue())
+}
+
 func (w *workflowClientInterceptor) PollWorkflowUpdate(
 	parentCtx context.Context,
 	in *ClientPollWorkflowUpdateInput,
@@ -1925,6 +2045,14 @@ func (ch *completedUpdateHandle) Get(ctx context.Context, valuePtr interface{}) 
 		return err
 	}
 	return nil
+}
+
+func (ch *completedUpdateWithStartHandle) GetUpdate(ctx context.Context, valuePtr interface{}) error {
+	return ch.completedUpdateHandle.Get(ctx, valuePtr)
+}
+
+func (ch *completedUpdateWithStartHandle) GetWorkflow(ctx context.Context, valuePtr interface{}) error {
+	panic("GetWorkflow not implemented yet")
 }
 
 func (luh *lazyUpdateHandle) Get(ctx context.Context, valuePtr interface{}) error {

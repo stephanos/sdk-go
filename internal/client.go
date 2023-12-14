@@ -375,6 +375,10 @@ type (
 		// NOTE: Experimental
 		UpdateWorkflowWithOptions(ctx context.Context, request *UpdateWorkflowWithOptionsRequest) (WorkflowUpdateHandle, error)
 
+		// TODO: documentation
+		UpdateWithStartWorkflow(ctx context.Context, request UpdateWorkflowWithOptionsRequest,
+			workflowOptions StartWorkflowOptions, workflow interface{}, workflowArgs ...interface{}) (WorkflowUpdateWithStartHandle, error)
+
 		// GetWorkflowUpdateHandle creates a handle to the referenced update
 		// which can be polled for an outcome. Note that runID is optional and
 		// if not specified the most recent runID will be used.

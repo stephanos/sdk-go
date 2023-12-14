@@ -411,6 +411,14 @@ func (c *ClientOutboundInterceptorBase) UpdateWorkflow(
 	return c.Next.UpdateWorkflow(ctx, in)
 }
 
+// TODO implement me
+func (c *ClientOutboundInterceptorBase) UpdateWithStartWorkflow(
+	ctx context.Context,
+	in *ClientUpdateWithStartWorkflowInput,
+) (WorkflowUpdateWithStartHandle, error) {
+	panic("implement me")
+}
+
 func (c *ClientOutboundInterceptorBase) PollWorkflowUpdate(
 	ctx context.Context,
 	in *ClientPollWorkflowUpdateInput,

@@ -202,6 +202,9 @@ type (
 	// NOTE: Experimental
 	WorkflowUpdateHandle = internal.WorkflowUpdateHandle
 
+	// TODO: documentation
+	WorkflowUpdateWithStartHandle = internal.WorkflowUpdateWithStartHandle
+
 	// GetWorkflowUpdateHandleOptions encapsulates the parameters needed to unambiguously
 	// refer to a Workflow Update
 	// NOTE: Experimental
@@ -326,6 +329,10 @@ type (
 		//  - serviceerror.Unavailable
 		SignalWithStartWorkflow(ctx context.Context, workflowID string, signalName string, signalArg interface{},
 			options StartWorkflowOptions, workflow interface{}, workflowArgs ...interface{}) (WorkflowRun, error)
+
+		// TODO: documentation
+		UpdateWithStartWorkflow(ctx context.Context, request UpdateWorkflowWithOptionsRequest,
+			workflowOptions StartWorkflowOptions, workflow interface{}, workflowArgs ...interface{}) (WorkflowUpdateWithStartHandle, error)
 
 		// CancelWorkflow request cancellation of a workflow in execution. Cancellation request closes the channel
 		// returned by the workflow.Context.Done() of the workflow that is target of the request.
