@@ -1921,33 +1921,28 @@ func (w *workflowClientInterceptor) UpdateWithStartWorkflow(
 	if err != nil {
 		return nil, err
 	}
+
 	header, err := headerPropagated(ctx, w.client.contextPropagators)
 	if err != nil {
 		return nil, err
 	}
+
 	grpcCtx, cancel := newGRPCContext(ctx, grpcTimeout(pollUpdateTimeout), grpcLongPoll(true), defaultGrpcRetryParameters(ctx))
 	defer cancel()
-	wfexec := &commonpb.WorkflowExecution{
-		WorkflowId: in.UpdateInput.WorkflowID,
-		RunId:      in.UpdateInput.RunID,
-	}
+
 	resp, err := w.client.workflowService.UpdateWithStartWorkflowExecution(grpcCtx, &workflowservice.UpdateWithStartWorkflowExecutionRequest{
 		// TODO: Start
-		Update: &workflowservice.UpdateWorkflowExecutionRequest{
-			WaitPolicy:          in.UpdateInput.WaitPolicy,
-			Namespace:           w.client.namespace,
-			WorkflowExecution:   wfexec,
-			FirstExecutionRunId: in.UpdateInput.FirstExecutionRunID,
-			Request: &updatepb.Request{
-				Meta: &updatepb.Meta{
-					UpdateId: in.UpdateInput.UpdateID,
-					Identity: w.client.identity,
-				},
-				Input: &updatepb.Input{
-					Header: header,
-					Name:   in.UpdateInput.UpdateName,
-					Args:   argPayloads,
-				},
+		Namespace:  w.client.namespace,
+		WaitPolicy: in.UpdateInput.WaitPolicy,
+		Update: &updatepb.Request{
+			Meta: &updatepb.Meta{
+				UpdateId: in.UpdateInput.UpdateID,
+				Identity: w.client.identity,
+			},
+			Input: &updatepb.Input{
+				Header: header,
+				Name:   in.UpdateInput.UpdateName,
+				Args:   argPayloads,
 			},
 		},
 	})
