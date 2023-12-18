@@ -1092,15 +1092,29 @@ func (wc *WorkflowClient) UpdateWithStartWorkflow(
 		return nil, err
 	}
 
+	// TODO
+	// Due to the ambiguous way to provide workflow IDs, if options contains an
+	// ID, it must match the parameter
+	//if workflowOptions.ID != "" && workflowOptions.ID != req.WorkflowID {
+	//	return nil, fmt.Errorf("workflow ID from options not used, must be unset or match workflow ID parameter")
+	//}
+
 	// Default update ID
 	updateID := req.UpdateID
 	if updateID == "" {
 		updateID = uuid.New()
 	}
 
+	if err := validateFunctionArgs(workflow, workflowArgs, true); err != nil {
+		return nil, err
+	}
+	workflowType, err := getWorkflowFunctionName(wc.registry, workflow)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx = contextWithNewHeader(ctx)
 	return wc.interceptor.UpdateWithStartWorkflow(ctx, &ClientUpdateWithStartWorkflowInput{
-		StartOptions: nil, // TODO
 		UpdateInput: &ClientUpdateWorkflowInput{
 			UpdateID:            updateID,
 			WorkflowID:          req.WorkflowID,
@@ -1110,6 +1124,9 @@ func (wc *WorkflowClient) UpdateWithStartWorkflow(
 			FirstExecutionRunID: req.FirstExecutionRunID,
 			WaitPolicy:          req.WaitPolicy,
 		},
+		StartOptions: &workflowOptions,
+		WorkflowType: workflowType,
+		WorkflowArgs: workflowArgs,
 	})
 }
 
@@ -1914,10 +1931,32 @@ func (w *workflowClientInterceptor) UpdateWithStartWorkflow(
 	ctx context.Context,
 	in *ClientUpdateWithStartWorkflowInput,
 ) (WorkflowUpdateWithStartHandle, error) {
+	// This is always set before interceptor is invoked
+	workflowID := in.UpdateInput.WorkflowID
+	if workflowID == "" {
+		return nil, fmt.Errorf("no workflow ID in options")
+	}
 
-	// FROM UpdateWorkflow
+	executionTimeout := in.StartOptions.WorkflowExecutionTimeout
+	runTimeout := in.StartOptions.WorkflowRunTimeout
+	workflowTaskTimeout := in.StartOptions.WorkflowTaskTimeout
 
-	argPayloads, err := w.client.dataConverter.ToPayloads(in.UpdateInput.Args...)
+	dataConverter := WithContext(ctx, w.client.dataConverter)
+	if dataConverter == nil {
+		dataConverter = converter.GetDefaultDataConverter()
+	}
+
+	workflowArgs, err := encodeArgs(dataConverter, in.WorkflowArgs)
+	if err != nil {
+		return nil, err
+	}
+
+	memo, err := getWorkflowMemo(in.StartOptions.Memo, dataConverter)
+	if err != nil {
+		return nil, err
+	}
+
+	searchAttr, err := serializeSearchAttributes(in.StartOptions.SearchAttributes)
 	if err != nil {
 		return nil, err
 	}
@@ -1927,11 +1966,33 @@ func (w *workflowClientInterceptor) UpdateWithStartWorkflow(
 		return nil, err
 	}
 
+	updateArgPayloads, err := w.client.dataConverter.ToPayloads(in.UpdateInput.Args...)
+	if err != nil {
+		return nil, err
+	}
+
 	grpcCtx, cancel := newGRPCContext(ctx, grpcTimeout(pollUpdateTimeout), grpcLongPoll(true), defaultGrpcRetryParameters(ctx))
 	defer cancel()
 
 	resp, err := w.client.workflowService.UpdateWithStartWorkflowExecution(grpcCtx, &workflowservice.UpdateWithStartWorkflowExecutionRequest{
-		// TODO: Start
+		StartRequest: &workflowservice.StartWorkflowExecutionRequest{
+			Namespace:                w.client.namespace,
+			RequestId:                uuid.New(),
+			WorkflowId:               in.StartOptions.ID,
+			WorkflowType:             &commonpb.WorkflowType{Name: in.WorkflowType},
+			TaskQueue:                &taskqueuepb.TaskQueue{Name: in.StartOptions.TaskQueue, Kind: enumspb.TASK_QUEUE_KIND_NORMAL},
+			Input:                    workflowArgs,
+			WorkflowExecutionTimeout: durationpb.New(executionTimeout),
+			WorkflowRunTimeout:       durationpb.New(runTimeout),
+			WorkflowTaskTimeout:      durationpb.New(workflowTaskTimeout),
+			Identity:                 w.client.identity,
+			WorkflowIdReusePolicy:    in.StartOptions.WorkflowIDReusePolicy,
+			RetryPolicy:              convertToPBRetryPolicy(in.StartOptions.RetryPolicy),
+			CronSchedule:             in.StartOptions.CronSchedule,
+			Memo:                     memo,
+			SearchAttributes:         searchAttr,
+			Header:                   header,
+		},
 		Namespace:  w.client.namespace,
 		WaitPolicy: in.UpdateInput.WaitPolicy,
 		Update: &updatepb.Request{
@@ -1942,7 +2003,7 @@ func (w *workflowClientInterceptor) UpdateWithStartWorkflow(
 			Input: &updatepb.Input{
 				Header: header,
 				Name:   in.UpdateInput.UpdateName,
-				Args:   argPayloads,
+				Args:   updateArgPayloads,
 			},
 		},
 	})

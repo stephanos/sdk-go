@@ -353,8 +353,10 @@ type ClientUpdateWorkflowInput struct {
 
 // TODO: documentation
 type ClientUpdateWithStartWorkflowInput struct {
-	StartOptions *StartWorkflowOptions
 	UpdateInput  *ClientUpdateWorkflowInput
+	StartOptions *StartWorkflowOptions
+	WorkflowType string
+	WorkflowArgs []interface{}
 }
 
 // ClientPollWorkflowUpdateInput is the input to
