@@ -780,6 +780,12 @@ type UpdateWorkflowWithOptionsRequest struct {
 
 	// How this RPC should block on the server before returning.
 	WaitPolicy *updatepb.WaitPolicy
+
+	// TODO
+	StartWorkflowOptions StartWorkflowOptions
+
+	// TODO
+	StartWorkflowPolicy enumspb.StartWorkflowPolicy
 }
 
 // WorkflowUpdateHandle is a handle to a workflow execution update process. The
@@ -800,6 +806,9 @@ type WorkflowUpdateHandle interface {
 
 	// Get blocks on the outcome of the update.
 	Get(ctx context.Context, valuePtr interface{}) error
+
+	// TODO
+	GetWorkflow(ctx context.Context, valuePtr interface{}) error
 }
 
 // GetWorkflowUpdateHandleOptions encapsulates the parameters needed to unambiguously
@@ -1915,6 +1924,11 @@ func (uh *baseUpdateHandle) RunID() string {
 
 func (uh *baseUpdateHandle) UpdateID() string {
 	return uh.ref.GetUpdateId()
+}
+
+func (uh *baseUpdateHandle) GetWorkflow(ctx context.Context, valuePtr interface{}) error {
+	// TODO
+	return nil
 }
 
 func (ch *completedUpdateHandle) Get(ctx context.Context, valuePtr interface{}) error {
