@@ -624,6 +624,13 @@ type (
 		//
 		// NOTE: Experimental
 		StartDelay time.Duration
+
+		Operations *PostStartOperations
+	}
+
+	PostStartOperations struct {
+		operations []postStartOperationRequest
+		mode       enumspb.WorkflowPostStartOperationMode
 	}
 
 	// RetryPolicy defines the retry policy.
@@ -910,4 +917,24 @@ func NewValue(data *commonpb.Payloads) converter.EncodedValue {
 //	NewValues(data).Get(&result1, &result2)
 func NewValues(data *commonpb.Payloads) converter.EncodedValues {
 	return newEncodedValues(data, nil)
+}
+
+func UpsertOperations(operations ...postStartOperationRequest) *PostStartOperations {
+	return &PostStartOperations{
+		operations: operations,
+		mode:       enumspb.WORKFLOW_POST_START_OPERATION_MODE_UPSERT,
+	}
+}
+
+func InitOperations(operations ...postStartOperationRequest) *PostStartOperations {
+	return &PostStartOperations{
+		operations: operations,
+		mode:       enumspb.WORKFLOW_POST_START_OPERATION_MODE_AT_START,
+	}
+}
+
+func PrepareUpdateOperation(request UpdateWorkflowWithOptionsRequest) *UpdateOperation {
+	return &UpdateOperation{
+		request: request,
+	}
 }

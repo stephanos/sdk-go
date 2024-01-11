@@ -93,6 +93,8 @@ type (
 	// StartWorkflowOptions configuration parameters for starting a workflow execution.
 	StartWorkflowOptions = internal.StartWorkflowOptions
 
+	Operations = internal.PostStartOperations
+
 	// HistoryEventIterator is a iterator which can return history events.
 	HistoryEventIterator = internal.HistoryEventIterator
 
@@ -662,6 +664,12 @@ type MetricsTimer = metrics.Timer
 
 // MetricsNopHandler is a noop handler that does nothing with the metrics.
 var MetricsNopHandler = metrics.NopHandler
+
+var UpsertOperations = internal.UpsertOperations
+
+var InitOperations = internal.InitOperations
+
+var PrepareUpdateOperation = internal.PrepareUpdateOperation
 
 // Dial creates an instance of a workflow client. This will attempt to connect
 // to the server eagerly and will return an error if the server is not

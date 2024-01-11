@@ -61,8 +61,9 @@ import (
 
 // Assert that structs do indeed implement the interfaces
 var (
-	_ Client          = (*WorkflowClient)(nil)
-	_ NamespaceClient = (*namespaceClient)(nil)
+	_ Client                 = (*WorkflowClient)(nil)
+	_ NamespaceClient        = (*namespaceClient)(nil)
+	_ PreparedWorkflowUpdate = (*UpdateOperation)(nil)
 )
 
 const (
@@ -805,6 +806,65 @@ type WorkflowUpdateHandle interface {
 	Get(ctx context.Context, valuePtr interface{}) error
 }
 
+type PreparedWorkflowUpdate interface {
+	Handle(WorkflowRun) (WorkflowUpdateHandle, error)
+}
+
+type UpdateOperation struct {
+	client   *WorkflowClient
+	request  UpdateWorkflowWithOptionsRequest
+	response *workflowservice.UpdateWorkflowExecutionResponse
+}
+
+func (u *UpdateOperation) toRequest(
+	client *WorkflowClient,
+) (*workflowservice.PostStartOperationRequest, error) {
+	u.client = client
+
+	argPayloads, err := client.dataConverter.ToPayloads(u.request.Args...)
+	if err != nil {
+		return nil, err
+	}
+
+	return &workflowservice.PostStartOperationRequest{
+		Operation: &workflowservice.PostStartOperationRequest_UpdateRequest{
+			UpdateRequest: &workflowservice.UpdateWorkflowExecutionRequest{
+				WorkflowExecution: &commonpb.WorkflowExecution{
+					WorkflowId: u.request.WorkflowID,
+					RunId:      u.request.RunID,
+				},
+				FirstExecutionRunId: u.request.FirstExecutionRunID,
+				WaitPolicy:          u.request.WaitPolicy,
+				Request: &updatepb.Request{
+					Meta: &updatepb.Meta{
+						UpdateId: u.request.UpdateID,
+					},
+					Input: &updatepb.Input{
+						Name: u.request.UpdateName,
+						Args: argPayloads,
+					},
+				},
+			},
+		},
+	}, nil
+}
+
+func (u *UpdateOperation) fromResult(resp *workflowservice.PostStartResultResponse) {
+	u.response = resp.GetUpdateResponse()
+}
+
+func (u *UpdateOperation) Handle(run WorkflowRun) (WorkflowUpdateHandle, error) {
+	if u.response == nil {
+		return nil, errors.New(fmt.Sprintf("no Update response received")) // TODO: better error message
+	}
+	return updateHandleFromResponse(u.client, u.response)
+}
+
+type postStartOperationRequest interface {
+	toRequest(*WorkflowClient) (*workflowservice.PostStartOperationRequest, error)
+	fromResult(*workflowservice.PostStartResultResponse)
+}
+
 // GetWorkflowUpdateHandleOptions encapsulates the parameters needed to unambiguously
 // refer to a Workflow Update.
 // NOTE: Experimental
@@ -1517,6 +1577,18 @@ func (w *workflowClientInterceptor) ExecuteWorkflow(
 		return nil, err
 	}
 
+	var operationRequests workflowservice.PostStartOperationRequests
+	if ops := in.Options.Operations; ops != nil {
+		operationRequests = workflowservice.PostStartOperationRequests{Mode: ops.mode}
+		for _, op := range ops.operations {
+			if req, err := op.toRequest(w.client); err != nil {
+				return nil, err
+			} else {
+				operationRequests.Operations = append(operationRequests.Operations, req)
+			}
+		}
+	}
+
 	// run propagators to extract information about tracing and other stuff, store in headers field
 	startRequest := &workflowservice.StartWorkflowExecutionRequest{
 		Namespace:                w.client.namespace,
@@ -1535,6 +1607,7 @@ func (w *workflowClientInterceptor) ExecuteWorkflow(
 		Memo:                     memo,
 		SearchAttributes:         searchAttr,
 		Header:                   header,
+		PostStartOperations:      &operationRequests,
 	}
 
 	var eagerExecutor *eagerWorkflowExecutor
@@ -1560,6 +1633,7 @@ func (w *workflowClientInterceptor) ExecuteWorkflow(
 	} else if eagerExecutor != nil {
 		eagerExecutor.release()
 	}
+
 	// Allow already-started error
 	var runID string
 	if e, ok := err.(*serviceerror.WorkflowExecutionAlreadyStarted); ok && !in.Options.WorkflowExecutionErrorWhenAlreadyStarted {
@@ -1568,6 +1642,13 @@ func (w *workflowClientInterceptor) ExecuteWorkflow(
 		return nil, err
 	} else {
 		runID = response.RunId
+	}
+
+	if operationResponses := response.PostStartResponses; operationResponses != nil {
+		// TODO: what should happen if there aren't enough responses?
+		for i, resp := range operationResponses.Responses {
+			in.Options.Operations.operations[i].fromResult(resp)
+		}
 	}
 
 	iterFn := func(fnCtx context.Context, fnRunID string) HistoryEventIterator {
@@ -1837,20 +1918,27 @@ func (w *workflowClientInterceptor) UpdateWorkflow(
 	if err != nil {
 		return nil, err
 	}
+	return updateHandleFromResponse(w.client, resp)
+}
+
+func updateHandleFromResponse(
+	client *WorkflowClient,
+	resp *workflowservice.UpdateWorkflowExecutionResponse,
+) (WorkflowUpdateHandle, error) {
 	switch v := resp.GetOutcome().GetValue().(type) {
 	case nil:
 		return &lazyUpdateHandle{
-			client:           w.client,
+			client:           client,
 			baseUpdateHandle: baseUpdateHandle{ref: resp.GetUpdateRef()},
 		}, nil
 	case *updatepb.Outcome_Failure:
 		return &completedUpdateHandle{
-			err:              w.client.failureConverter.FailureToError(v.Failure),
+			err:              client.failureConverter.FailureToError(v.Failure),
 			baseUpdateHandle: baseUpdateHandle{ref: resp.GetUpdateRef()},
 		}, nil
 	case *updatepb.Outcome_Success:
 		return &completedUpdateHandle{
-			value:            newEncodedValue(v.Success, w.client.dataConverter),
+			value:            newEncodedValue(v.Success, client.dataConverter),
 			baseUpdateHandle: baseUpdateHandle{ref: resp.GetUpdateRef()},
 		}, nil
 	}
