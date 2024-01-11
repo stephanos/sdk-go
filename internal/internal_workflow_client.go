@@ -2021,11 +2021,13 @@ func (w *workflowClientInterceptor) UpdateWithStartWorkflow(
 				baseUpdateHandle: baseUpdateHandle{ref: resp.UpdateResponse.GetUpdateRef()},
 			},
 		}, nil
-		//case *updatepb.Outcome_Success:
-		//	return &completedUpdateHandle{
-		//		value:            newEncodedValue(v.Success, w.client.dataConverter),
-		//		baseUpdateHandle: baseUpdateHandle{ref: resp.UpdateResponse.GetUpdateRef()},
-		//	}, nil
+	case *updatepb.Outcome_Success:
+		return &completedUpdateWithStartHandle{
+			completedUpdateHandle: completedUpdateHandle{
+				value:            newEncodedValue(v.Success, w.client.dataConverter),
+				baseUpdateHandle: baseUpdateHandle{ref: resp.UpdateResponse.GetUpdateRef()},
+			},
+		}, nil
 	}
 	return nil, fmt.Errorf("unsupported outcome type %T", resp.GetUpdateResponse().GetOutcome().GetValue())
 }
