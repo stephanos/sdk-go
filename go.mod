@@ -33,4 +33,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace go.temporal.io/api => /Users/stephan/Workspace/api-go
+replace go.temporal.io/api => /Users/stephan/Workspace/update-with-start/api-go
