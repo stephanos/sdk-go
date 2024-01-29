@@ -93,6 +93,10 @@ type (
 	// StartWorkflowOptions configuration parameters for starting a workflow execution.
 	StartWorkflowOptions = internal.StartWorkflowOptions
 
+	Operations = internal.MultiOperationInput
+
+	MultiOperationResponse = internal.MultiOperationHandle
+
 	// HistoryEventIterator is a iterator which can return history events.
 	HistoryEventIterator = internal.HistoryEventIterator
 
@@ -284,6 +288,8 @@ type (
 		// GetRunID() will always return "run ID 1" and  Get(ctx context.Context, valuePtr interface{}) will return the result of second run.
 		// NOTE: DO NOT USE THIS API INSIDE A WORKFLOW, USE workflow.ExecuteChildWorkflow instead
 		ExecuteWorkflow(ctx context.Context, options StartWorkflowOptions, workflow interface{}, args ...interface{}) (WorkflowRun, error)
+
+		ExecuteMultiOperation(ctx context.Context, operation *internal.MultiOperationInput) (*MultiOperationResponse, error)
 
 		// GetWorkflow retrieves a workflow execution and return a WorkflowRun instance (described above)
 		// - workflow ID of the workflow.
@@ -662,6 +668,12 @@ type MetricsTimer = metrics.Timer
 
 // MetricsNopHandler is a noop handler that does nothing with the metrics.
 var MetricsNopHandler = metrics.NopHandler
+
+var NewMultiOperation = internal.NewMultiOperation
+
+var PrepareUpdateOperation = internal.PrepareUpdateOperation
+
+var PrepareStartOperation = internal.PrepareStartOperation
 
 // Dial creates an instance of a workflow client. This will attempt to connect
 // to the server eagerly and will return an error if the server is not

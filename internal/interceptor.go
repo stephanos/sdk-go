@@ -298,6 +298,9 @@ type ClientOutboundInterceptor interface {
 	// interceptor.Header will return a non-nil map for this context.
 	ExecuteWorkflow(context.Context, *ClientExecuteWorkflowInput) (WorkflowRun, error)
 
+	// TODO
+	ExecuteMultiOperation(context.Context, *MultiOperationInput) (*MultiOperationHandle, error)
+
 	// CreateSchedule - Intercept a service call to CreateSchedule
 	CreateSchedule(ctx context.Context, options *ScheduleClientCreateInput) (ScheduleHandle, error)
 

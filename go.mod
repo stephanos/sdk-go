@@ -10,12 +10,14 @@ require (
 	github.com/pborman/uuid v1.2.1
 	github.com/robfig/cron v1.2.0
 	github.com/stretchr/testify v1.8.4
-	go.temporal.io/api v1.26.1-0.20240112215643-d0a4923d76f9
+	go.temporal.io/api v1.26.1
 	golang.org/x/sys v0.16.0
 	golang.org/x/time v0.3.0
 	google.golang.org/grpc v1.61.0
 	google.golang.org/protobuf v1.32.0
 )
+
+require github.com/rogpeppe/go-internal v1.12.0 // indirect
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -33,4 +35,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace go.temporal.io/api => /Users/stephan/Workspace/update-with-start/api-go
+replace go.temporal.io/api => ../api-go

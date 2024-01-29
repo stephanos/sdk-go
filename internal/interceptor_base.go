@@ -402,6 +402,13 @@ type ClientOutboundInterceptorBase struct {
 	Next ClientOutboundInterceptor
 }
 
+func (c *ClientOutboundInterceptorBase) ExecuteMultiOperation(
+	ctx context.Context,
+	in *MultiOperationInput,
+) (*MultiOperationHandle, error) {
+	return c.Next.ExecuteMultiOperation(ctx, in)
+}
+
 var _ ClientOutboundInterceptor = &ClientOutboundInterceptorBase{}
 
 func (c *ClientOutboundInterceptorBase) UpdateWorkflow(

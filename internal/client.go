@@ -90,6 +90,8 @@ type (
 		// NOTE: DO NOT USE THIS API INSIDE A WORKFLOW, USE workflow.ExecuteChildWorkflow instead
 		ExecuteWorkflow(ctx context.Context, options StartWorkflowOptions, workflow interface{}, args ...interface{}) (WorkflowRun, error)
 
+		ExecuteMultiOperation(ctx context.Context, operation *MultiOperationInput) (*MultiOperationHandle, error)
+
 		// GetWorkflow retrieves a workflow execution and return a WorkflowRun instance
 		// - workflow ID of the workflow.
 		// - runID can be default(empty string). if empty string then it will pick the last running execution of that workflow ID.
@@ -626,6 +628,10 @@ type (
 		StartDelay time.Duration
 	}
 
+	MultiOperationInput struct {
+		operations []multiOperationWorkflowExecutionRequest
+	}
+
 	// RetryPolicy defines the retry policy.
 	// Note that the history of activity with retry policy will be different: the started event will be written down into
 	// history only when the activity completes or "finally" timeouts/fails. And the started event only records the last
@@ -910,4 +916,27 @@ func NewValue(data *commonpb.Payloads) converter.EncodedValue {
 //	NewValues(data).Get(&result1, &result2)
 func NewValues(data *commonpb.Payloads) converter.EncodedValues {
 	return newEncodedValues(data, nil)
+}
+
+func NewMultiOperation() *MultiOperationInput {
+	return &MultiOperationInput{}
+}
+
+func (m *MultiOperationInput) Add(operations ...multiOperationWorkflowExecutionRequest) *MultiOperationInput {
+	m.operations = append(m.operations, operations...)
+	return m
+}
+
+func PrepareUpdateOperation(request UpdateWorkflowWithOptionsRequest) *UpdateOperation {
+	return &UpdateOperation{
+		request: request,
+	}
+}
+
+func PrepareStartOperation(options StartWorkflowOptions, workflow interface{}, args ...interface{}) *StartOperation {
+	return &StartOperation{
+		Options:  options,
+		Workflow: workflow,
+		Args:     args,
+	}
 }
