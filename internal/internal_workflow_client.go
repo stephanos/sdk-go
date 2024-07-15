@@ -150,6 +150,11 @@ type (
 		GetWithOptions(ctx context.Context, valuePtr interface{}, options WorkflowRunGetOptions) error
 	}
 
+	MultiOperationHandle struct {
+		clientInterceptor *workflowClientInterceptor
+		responses         []*workflowservice.ExecuteMultiOperationResponse_Response
+	}
+
 	// WorkflowRunGetOptions are options for WorkflowRun.GetWithOptions.
 	WorkflowRunGetOptions struct {
 		// DisableFollowingRuns, if true, will not follow execution chains to the
@@ -219,11 +224,33 @@ type (
 // The current timeout resolution implementation is in seconds and uses math.Ceil(d.Seconds()) as the duration. But is
 // subjected to change in the future.
 // NOTE: the context.Context should have a fairly large timeout, since workflow execution may take a while to be finished
-func (wc *WorkflowClient) ExecuteWorkflow(ctx context.Context, options StartWorkflowOptions, workflow interface{}, args ...interface{}) (WorkflowRun, error) {
+func (wc *WorkflowClient) ExecuteWorkflow(
+	ctx context.Context,
+	options StartWorkflowOptions,
+	workflow interface{},
+	args ...interface{},
+) (WorkflowRun, error) {
 	if err := wc.ensureInitialized(ctx); err != nil {
 		return nil, err
 	}
 
+	in, err := wc.createExecuteWorkflowInput(options, workflow, args)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set header before interceptor run
+	ctx = contextWithNewHeader(ctx)
+
+	// Run via interceptor
+	return wc.interceptor.ExecuteWorkflow(ctx, in)
+}
+
+func (wc *WorkflowClient) createExecuteWorkflowInput(
+	options StartWorkflowOptions,
+	workflow interface{},
+	args []interface{},
+) (*ClientExecuteWorkflowInput, error) {
 	// Default workflow ID
 	if options.ID == "" {
 		options.ID = uuid.New()
@@ -238,15 +265,27 @@ func (wc *WorkflowClient) ExecuteWorkflow(ctx context.Context, options StartWork
 		return nil, err
 	}
 
-	// Set header before interceptor run
-	ctx = contextWithNewHeader(ctx)
-
-	// Run via interceptor
-	return wc.interceptor.ExecuteWorkflow(ctx, &ClientExecuteWorkflowInput{
+	return &ClientExecuteWorkflowInput{
 		Options:      &options,
 		WorkflowType: workflowType,
 		Args:         args,
-	})
+	}, nil
+}
+
+func (wc *WorkflowClient) ExecuteMultiOperation(
+	ctx context.Context,
+	multiOperation *MultiOperationInput,
+) (*MultiOperationHandle, error) {
+	if err := wc.ensureInitialized(ctx); err != nil {
+		return nil, err
+	}
+
+	// TODO: validation?
+
+	// Set header before interceptor run
+	ctx = contextWithNewHeader(ctx)
+
+	return wc.interceptor.ExecuteMultiOperation(ctx, multiOperation)
 }
 
 // GetWorkflow gets a workflow execution and returns a WorkflowRun that will allow you to wait until this workflow
@@ -805,6 +844,46 @@ type WorkflowUpdateHandle interface {
 	Get(ctx context.Context, valuePtr interface{}) error
 }
 
+type multiOperationWorkflowExecutionRequest interface {
+	isMultiOperationWorkflowExecutionRequest()
+}
+
+type UpdateOperation struct {
+	request UpdateWorkflowWithOptionsRequest
+	index   int
+	input   *ClientUpdateWorkflowInput
+}
+
+func (u *UpdateOperation) isMultiOperationWorkflowExecutionRequest() {
+}
+
+func (u *UpdateOperation) Handle(resp *MultiOperationHandle) (WorkflowUpdateHandle, error) {
+	response := resp.responses[u.index].GetUpdateWorkflow() // TODO: be more defensive
+	if response == nil {
+		return nil, errors.New(fmt.Sprintf("no Update response received")) // TODO: better error message
+	}
+	return resp.clientInterceptor.updateHandleFromResponse(response)
+}
+
+type StartOperation struct {
+	Workflow interface{}
+	Args     []interface{}
+	Options  StartWorkflowOptions
+	index    int
+	input    *ClientExecuteWorkflowInput
+}
+
+func (s *StartOperation) isMultiOperationWorkflowExecutionRequest() {
+}
+
+func (s *StartOperation) Handle(resp *MultiOperationHandle) (WorkflowRun, error) {
+	response := resp.responses[s.index].GetStartWorkflow() // TODO: be more defensive
+	if response == nil {
+		return nil, errors.New(fmt.Sprintf("no Start response received")) // TODO: better error message
+	}
+	return resp.clientInterceptor.createWorkflowRunFromResponse(s.input, response, nil) // TODO: err!
+}
+
 // GetWorkflowUpdateHandleOptions encapsulates the parameters needed to unambiguously
 // refer to a Workflow Update.
 // NOTE: Experimental
@@ -1042,15 +1121,27 @@ func (wc *WorkflowClient) UpdateWorkflowWithOptions(
 	if err := wc.ensureInitialized(ctx); err != nil {
 		return nil, err
 	}
+
+	input, err := wc.createUpdateWorkflowInput(req)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx = contextWithNewHeader(ctx)
+
+	return wc.interceptor.UpdateWorkflow(ctx, input)
+}
+
+func (wc *WorkflowClient) createUpdateWorkflowInput(
+	req *UpdateWorkflowWithOptionsRequest,
+) (*ClientUpdateWorkflowInput, error) {
 	// Default update ID
 	updateID := req.UpdateID
 	if updateID == "" {
 		updateID = uuid.New()
 	}
 
-	ctx = contextWithNewHeader(ctx)
-
-	return wc.interceptor.UpdateWorkflow(ctx, &ClientUpdateWorkflowInput{
+	return &ClientUpdateWorkflowInput{
 		UpdateID:            updateID,
 		WorkflowID:          req.WorkflowID,
 		UpdateName:          req.UpdateName,
@@ -1058,7 +1149,7 @@ func (wc *WorkflowClient) UpdateWorkflowWithOptions(
 		RunID:               req.RunID,
 		FirstExecutionRunID: req.FirstExecutionRunID,
 		WaitPolicy:          req.WaitPolicy,
-	})
+	}, nil
 }
 
 func (wc *WorkflowClient) GetWorkflowUpdateHandle(ref GetWorkflowUpdateHandleOptions) WorkflowUpdateHandle {
@@ -1460,6 +1551,43 @@ func (w *workflowClientInterceptor) ExecuteWorkflow(
 	ctx context.Context,
 	in *ClientExecuteWorkflowInput,
 ) (WorkflowRun, error) {
+	startRequest, err := w.createStartWorkflowExecutionRequest(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+
+	var eagerExecutor *eagerWorkflowExecutor
+	if in.Options.EnableEagerStart && w.client.capabilities.GetEagerWorkflowStart() && w.client.eagerDispatcher != nil {
+		eagerExecutor = w.client.eagerDispatcher.applyToRequest(startRequest)
+	}
+
+	if in.Options.StartDelay != 0 {
+		startRequest.WorkflowStartDelay = durationpb.New(in.Options.StartDelay)
+	}
+
+	var response *workflowservice.StartWorkflowExecutionResponse
+
+	grpcCtx, cancel := newGRPCContext(ctx, grpcMetricsHandler(
+		w.client.metricsHandler.WithTags(metrics.RPCTags(in.WorkflowType, metrics.NoneTagValue, in.Options.TaskQueue))),
+		defaultGrpcRetryParameters(ctx))
+	defer cancel()
+
+	response, err = w.client.workflowService.StartWorkflowExecution(grpcCtx, startRequest)
+
+	eagerWorkflowTask := response.GetEagerWorkflowTask()
+	if eagerWorkflowTask != nil && eagerExecutor != nil {
+		eagerExecutor.handleResponse(eagerWorkflowTask)
+	} else if eagerExecutor != nil {
+		eagerExecutor.release()
+	}
+
+	return w.createWorkflowRunFromResponse(in, response, err)
+}
+
+func (w *workflowClientInterceptor) createStartWorkflowExecutionRequest(
+	ctx context.Context,
+	in *ClientExecuteWorkflowInput,
+) (*workflowservice.StartWorkflowExecutionRequest, error) {
 	// This is always set before interceptor is invoked
 	workflowID := in.Options.ID
 	if workflowID == "" {
@@ -1510,36 +1638,21 @@ func (w *workflowClientInterceptor) ExecuteWorkflow(
 		WorkflowTaskTimeout:      durationpb.New(workflowTaskTimeout),
 		Identity:                 w.client.identity,
 		WorkflowIdReusePolicy:    in.Options.WorkflowIDReusePolicy,
+		WorkflowIdConflictPolicy: in.Options.WorkflowIDConflictPolicy,
 		RetryPolicy:              convertToPBRetryPolicy(in.Options.RetryPolicy),
 		CronSchedule:             in.Options.CronSchedule,
 		Memo:                     memo,
 		SearchAttributes:         searchAttr,
 		Header:                   header,
 	}
+	return startRequest, nil
+}
 
-	var eagerExecutor *eagerWorkflowExecutor
-	if in.Options.EnableEagerStart && w.client.capabilities.GetEagerWorkflowStart() && w.client.eagerDispatcher != nil {
-		eagerExecutor = w.client.eagerDispatcher.applyToRequest(startRequest)
-	}
-
-	if in.Options.StartDelay != 0 {
-		startRequest.WorkflowStartDelay = durationpb.New(in.Options.StartDelay)
-	}
-
-	var response *workflowservice.StartWorkflowExecutionResponse
-
-	grpcCtx, cancel := newGRPCContext(ctx, grpcMetricsHandler(
-		w.client.metricsHandler.WithTags(metrics.RPCTags(in.WorkflowType, metrics.NoneTagValue, in.Options.TaskQueue))),
-		defaultGrpcRetryParameters(ctx))
-	defer cancel()
-
-	response, err = w.client.workflowService.StartWorkflowExecution(grpcCtx, startRequest)
-	eagerWorkflowTask := response.GetEagerWorkflowTask()
-	if eagerWorkflowTask != nil && eagerExecutor != nil {
-		eagerExecutor.handleResponse(eagerWorkflowTask)
-	} else if eagerExecutor != nil {
-		eagerExecutor.release()
-	}
+func (w *workflowClientInterceptor) createWorkflowRunFromResponse(
+	in *ClientExecuteWorkflowInput,
+	response *workflowservice.StartWorkflowExecutionResponse,
+	err error,
+) (WorkflowRun, error) {
 	// Allow already-started error
 	var runID string
 	if e, ok := err.(*serviceerror.WorkflowExecutionAlreadyStarted); ok && !in.Options.WorkflowExecutionErrorWhenAlreadyStarted {
@@ -1553,14 +1666,14 @@ func (w *workflowClientInterceptor) ExecuteWorkflow(
 	iterFn := func(fnCtx context.Context, fnRunID string) HistoryEventIterator {
 		metricsHandler := w.client.metricsHandler.WithTags(metrics.RPCTags(in.WorkflowType,
 			metrics.NoneTagValue, in.Options.TaskQueue))
-		return w.client.getWorkflowHistory(fnCtx, workflowID, fnRunID, true,
+		return w.client.getWorkflowHistory(fnCtx, in.Options.ID, fnRunID, true,
 			enumspb.HISTORY_EVENT_FILTER_TYPE_CLOSE_EVENT, metricsHandler)
 	}
 
 	curRunIDCell := util.PopulatedOnceCell(runID)
 	return &workflowRunImpl{
 		workflowType:     in.WorkflowType,
-		workflowID:       workflowID,
+		workflowID:       in.Options.ID,
 		firstRunID:       runID,
 		currentRunID:     &curRunIDCell,
 		iterFn:           iterFn,
@@ -1568,6 +1681,73 @@ func (w *workflowClientInterceptor) ExecuteWorkflow(
 		failureConverter: w.client.failureConverter,
 		registry:         w.client.registry,
 	}, nil
+}
+
+func (w *workflowClientInterceptor) ExecuteMultiOperation(
+	ctx context.Context,
+	in *MultiOperationInput,
+) (*MultiOperationHandle, error) {
+	// TODO: validate operations
+
+	multiOpsRequest := workflowservice.ExecuteMultiOperationRequest{
+		Namespace:  w.client.namespace,
+		Operations: make([]*workflowservice.ExecuteMultiOperationRequest_Operation, len(in.operations)),
+	}
+	for i, op := range in.operations {
+		var req *workflowservice.ExecuteMultiOperationRequest_Operation
+		// TODO: should this be solved with an interface instead?
+		switch t := op.(type) {
+		case *StartOperation:
+			var err error
+			t.input, err = w.client.createExecuteWorkflowInput(t.Options, t.Workflow, t.Args)
+			if err != nil {
+				return nil, err
+			}
+
+			startReq, err := w.createStartWorkflowExecutionRequest(ctx, t.input)
+			if err != nil {
+				return nil, err
+			}
+
+			req = &workflowservice.ExecuteMultiOperationRequest_Operation{
+				Operation: &workflowservice.ExecuteMultiOperationRequest_Operation_StartWorkflow{
+					StartWorkflow: startReq,
+				},
+			}
+			t.index = i
+		case *UpdateOperation:
+			var err error
+			t.input, err = w.client.createUpdateWorkflowInput(&t.request)
+			if err != nil {
+				return nil, err
+			}
+
+			updateReq, err := w.createUpdateWorkflowRequest(ctx, t.input)
+			if err != nil {
+				return nil, err
+			}
+
+			req = &workflowservice.ExecuteMultiOperationRequest_Operation{
+				Operation: &workflowservice.ExecuteMultiOperationRequest_Operation_UpdateWorkflow{
+					UpdateWorkflow: updateReq,
+				},
+			}
+			t.index = i
+		default:
+			return nil, errors.New(fmt.Sprintf("unsupported operation request type: %T", t))
+		}
+		multiOpsRequest.Operations[i] = req
+	}
+
+	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
+	defer cancel()
+
+	resp, err := w.client.workflowService.ExecuteMultiOperation(grpcCtx, &multiOpsRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	return &MultiOperationHandle{clientInterceptor: w, responses: resp.Responses}, nil
 }
 
 func (w *workflowClientInterceptor) SignalWorkflow(ctx context.Context, in *ClientSignalWorkflowInput) error {
@@ -1656,6 +1836,7 @@ func (w *workflowClientInterceptor) SignalWithStartWorkflow(
 		Memo:                     memo,
 		SearchAttributes:         searchAttr,
 		WorkflowIdReusePolicy:    in.Options.WorkflowIDReusePolicy,
+		WorkflowIdConflictPolicy: in.Options.WorkflowIDConflictPolicy,
 		Header:                   header,
 	}
 
@@ -1783,21 +1964,38 @@ func (w *workflowClientInterceptor) UpdateWorkflow(
 	ctx context.Context,
 	in *ClientUpdateWorkflowInput,
 ) (WorkflowUpdateHandle, error) {
+	req, err := w.createUpdateWorkflowRequest(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+
+	grpcCtx, cancel := newGRPCContext(ctx, grpcTimeout(pollUpdateTimeout), grpcLongPoll(true), defaultGrpcRetryParameters(ctx))
+	defer cancel()
+	resp, err := w.client.workflowService.UpdateWorkflowExecution(grpcCtx, req)
+
+	return w.updateHandleFromResponse(resp)
+}
+
+func (w *workflowClientInterceptor) createUpdateWorkflowRequest(
+	ctx context.Context,
+	in *ClientUpdateWorkflowInput,
+) (*workflowservice.UpdateWorkflowExecutionRequest, error) {
 	argPayloads, err := w.client.dataConverter.ToPayloads(in.Args...)
 	if err != nil {
 		return nil, err
 	}
+
 	header, err := headerPropagated(ctx, w.client.contextPropagators)
 	if err != nil {
 		return nil, err
 	}
-	grpcCtx, cancel := newGRPCContext(ctx, grpcTimeout(pollUpdateTimeout), grpcLongPoll(true), defaultGrpcRetryParameters(ctx))
-	defer cancel()
+
 	wfexec := &commonpb.WorkflowExecution{
 		WorkflowId: in.WorkflowID,
 		RunId:      in.RunID,
 	}
-	resp, err := w.client.workflowService.UpdateWorkflowExecution(grpcCtx, &workflowservice.UpdateWorkflowExecutionRequest{
+
+	return &workflowservice.UpdateWorkflowExecutionRequest{
 		WaitPolicy:          in.WaitPolicy,
 		Namespace:           w.client.namespace,
 		WorkflowExecution:   wfexec,
@@ -1813,10 +2011,12 @@ func (w *workflowClientInterceptor) UpdateWorkflow(
 				Args:   argPayloads,
 			},
 		},
-	})
-	if err != nil {
-		return nil, err
-	}
+	}, nil
+}
+
+func (w *workflowClientInterceptor) updateHandleFromResponse(
+	resp *workflowservice.UpdateWorkflowExecutionResponse,
+) (WorkflowUpdateHandle, error) {
 	switch v := resp.GetOutcome().GetValue().(type) {
 	case nil:
 		return &lazyUpdateHandle{

@@ -91,6 +91,8 @@ type (
 		// NOTE: DO NOT USE THIS API INSIDE A WORKFLOW, USE workflow.ExecuteChildWorkflow instead
 		ExecuteWorkflow(ctx context.Context, options StartWorkflowOptions, workflow interface{}, args ...interface{}) (WorkflowRun, error)
 
+		ExecuteMultiOperation(ctx context.Context, operation *MultiOperationInput) (*MultiOperationHandle, error)
+
 		// GetWorkflow retrieves a workflow execution and return a WorkflowRun instance
 		// - workflow ID of the workflow.
 		// - runID can be default(empty string). if empty string then it will pick the last running execution of that workflow ID.
@@ -573,10 +575,14 @@ type (
 		// Optional: defaulted to 10 secs.
 		WorkflowTaskTimeout time.Duration
 
-		// WorkflowIDReusePolicy - Whether server allow reuse of workflow ID, can be useful
-		// for dedupe logic if set to RejectDuplicate.
+		// WorkflowIDReusePolicy - Whether server should allow reuse of the workflow ID of a *closed* Workflow.
+		// This can be useful for dedupe logic if set to RejectDuplicate.
 		// Optional: defaulted to AllowDuplicate.
 		WorkflowIDReusePolicy enumspb.WorkflowIdReusePolicy
+
+		// WorkflowIDConflictPolicy - Defines how to resolve an ID conflict with a *running* workflow.
+		// Optional: defaulted to Fail for Start Workflow, UseExisting for Signal-With-Start.
+		WorkflowIDConflictPolicy enumspb.WorkflowIdConflictPolicy
 
 		// When WorkflowExecutionErrorWhenAlreadyStarted is true, Client.ExecuteWorkflow will return an error if the
 		// workflow id has already been used and WorkflowIDReusePolicy would disallow a re-run. If it is set to false,
@@ -641,6 +647,10 @@ type (
 		// of the delay will be ignored. A signal from signal with start will not trigger a workflow task.
 		// Cannot be set the same time as a CronSchedule.
 		StartDelay time.Duration
+	}
+
+	MultiOperationInput struct {
+		operations []multiOperationWorkflowExecutionRequest
 	}
 
 	// RetryPolicy defines the retry policy.
@@ -992,3 +1002,26 @@ func (m mTLSCredentials) applyToOptions(opts *ClientOptions) error {
 }
 
 func (mTLSCredentials) gRPCInterceptor() grpc.UnaryClientInterceptor { return nil }
+
+func NewMultiOperation() *MultiOperationInput {
+	return &MultiOperationInput{}
+}
+
+func (m *MultiOperationInput) Add(operations ...multiOperationWorkflowExecutionRequest) *MultiOperationInput {
+	m.operations = append(m.operations, operations...)
+	return m
+}
+
+func PrepareUpdateOperation(request UpdateWorkflowWithOptionsRequest) *UpdateOperation {
+	return &UpdateOperation{
+		request: request,
+	}
+}
+
+func PrepareStartOperation(options StartWorkflowOptions, workflow interface{}, args ...interface{}) *StartOperation {
+	return &StartOperation{
+		Options:  options,
+		Workflow: workflow,
+		Args:     args,
+	}
+}
