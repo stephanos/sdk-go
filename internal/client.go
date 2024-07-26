@@ -27,6 +27,7 @@ package internal
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"sync/atomic"
 	"time"
@@ -633,10 +634,23 @@ type (
 		// Optional: defaulted to 10 secs.
 		WorkflowTaskTimeout time.Duration
 
-		// WorkflowIDReusePolicy - Whether server allow reuse of workflow ID, can be useful
-		// for dedupe logic if set to RejectDuplicate.
+		// WorkflowIDReusePolicy - Specifies server behavior if a *completed* workflow with the same id exists.
+		// This can be useful for dedupe logic if set to RejectDuplicate
 		// Optional: defaulted to AllowDuplicate.
 		WorkflowIDReusePolicy enumspb.WorkflowIdReusePolicy
+
+		// WorkflowIDConflictPolicy - Specifies server behavior if a *running* workflow with the same id exists.
+		// This cannot be set if WorkflowIDReusePolicy is set to TerminateIfRunning.
+		// Optional: defaulted to Fail.
+		WorkflowIDConflictPolicy enumspb.WorkflowIdConflictPolicy
+
+		// WorkflowOperation - Operation to execute at Workflow Start.
+		// If the workflow is already running and WorkflowIDConflictPolicy is set to USE_EXISTING,
+		// the start is skipped and only the operation it executed.
+		// See client.PrepareUpdateWorkflowOperation to perform an Update-with-Start.
+		//
+		// Optional: defaults to nil.
+		WorkflowOperation StartWorkflowOperation
 
 		// When WorkflowExecutionErrorWhenAlreadyStarted is true, Client.ExecuteWorkflow will return an error if the
 		// workflow id has already been used and WorkflowIDReusePolicy would disallow a re-run. If it is set to false,
@@ -706,6 +720,19 @@ type (
 		requestID string
 		// workflow completion callback. Only settable by the SDK - e.g. [temporalnexus.workflowRunOperation].
 		callbacks []*commonpb.Callback
+	}
+
+	// TODO
+	StartWorkflowOperation interface {
+		isStartWorkflowOperation()
+	}
+
+	// TODO
+	UpdateWorkflowOperation struct {
+		input       *ClientUpdateWorkflowInput
+		interceptor *workflowClientInterceptor
+		resp        *workflowservice.UpdateWorkflowExecutionResponse
+		respErr     error
 	}
 
 	// RetryPolicy defines the retry policy.
@@ -997,6 +1024,34 @@ func DialCloudOperationsClient(ctx context.Context, options CloudOperationsClien
 		cloudServiceClient: cloudservice.NewCloudServiceClient(conn),
 	}, nil
 }
+
+func PrepareUpdateWorkflowOperation(options UpdateWorkflowOptions) (*UpdateWorkflowOperation, error) {
+	input, err := createUpdateWorkflowInput(options)
+	if err != nil {
+		return nil, err
+	}
+	return &UpdateWorkflowOperation{input: input}, nil
+}
+
+func (op *UpdateWorkflowOperation) Get() (WorkflowUpdateHandle, error) {
+	if op.respErr != nil {
+		return nil, op.respErr
+	}
+	if op.resp == nil && op.respErr == nil {
+		return nil, errors.New("UpdateWorkflowOperation has not been executed")
+	}
+
+	desiredLifecycleStage := updateLifeCycleStageToProto(op.input.WaitForStage)
+	return op.interceptor.updateHandleFromResponse(context.Background(), desiredLifecycleStage, op.resp)
+}
+
+// TODO
+//func (op *UpdateWorkflowOperation) reset() {
+//	op.resp = nil
+//	op.respErr = nil
+//}
+
+func (op *UpdateWorkflowOperation) isStartWorkflowOperation() {}
 
 // NewNamespaceClient creates an instance of a namespace client, to manager lifecycle of namespaces.
 func NewNamespaceClient(options ClientOptions) (NamespaceClient, error) {

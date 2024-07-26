@@ -38,6 +38,7 @@ import (
 
 	commonpb "go.temporal.io/api/common/v1"
 	enumspb "go.temporal.io/api/enums/v1"
+
 	"go.temporal.io/sdk/converter"
 	"go.temporal.io/sdk/internal"
 	"go.temporal.io/sdk/temporal"
@@ -372,6 +373,30 @@ func (w *Workflows) UpdateInfoWorkflow(ctx workflow.Context) error {
 	return nil
 }
 
+func (w *Workflows) UpdateEntityWorkflow(ctx workflow.Context) (int, error) {
+	counter := 0
+
+	err := workflow.SetUpdateHandlerWithOptions(ctx, "update", func(ctx workflow.Context, add int) (int, error) {
+		workflow.Sleep(ctx, 1*time.Second) // force separate WFT for accept and complete
+		counter += add
+		return counter, nil
+	}, workflow.UpdateHandlerOptions{
+		Validator: func(ctx workflow.Context, i int) error {
+			if i < 0 {
+				return fmt.Errorf("addend must be non-negative (%v)", i)
+			}
+			return nil
+		},
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	workflow.Await(ctx, func() bool { return counter == 2 })
+
+	return counter, nil
+}
+
 func (w *Workflows) UpdateWithValidatorWorkflow(ctx workflow.Context) error {
 	workflow.Go(ctx, func(ctx workflow.Context) {
 		_ = workflow.Sleep(ctx, time.Minute)
@@ -642,6 +667,13 @@ func (w *Workflows) IDReusePolicy(
 	}
 
 	return ans1 + ans2, nil
+}
+
+func (w *Workflows) IDConflictPolicy(
+	ctx workflow.Context,
+) error {
+	workflow.Await(ctx, func() bool { return false })
+	return nil
 }
 
 func (w *Workflows) ChildWorkflowWithRetryPolicy(ctx workflow.Context, expectedMaximumAttempts int, iterations int) error {
@@ -3063,6 +3095,7 @@ func (w *Workflows) register(worker worker.Worker) {
 	worker.RegisterWorkflow(w.ContinueAsNewWithRetryPolicy)
 	worker.RegisterWorkflow(w.ContinueAsNewWithChildWF)
 	worker.RegisterWorkflow(w.IDReusePolicy)
+	worker.RegisterWorkflow(w.IDConflictPolicy)
 	worker.RegisterWorkflow(w.InspectActivityInfo)
 	worker.RegisterWorkflow(w.InspectLocalActivityInfo)
 	worker.RegisterWorkflow(w.LargeQueryResultWorkflow)
@@ -3085,6 +3118,7 @@ func (w *Workflows) register(worker worker.Worker) {
 	worker.RegisterWorkflow(w.WorkflowWithLocalActivityStartToCloseTimeout)
 	worker.RegisterWorkflow(w.LocalActivityStaleCache)
 	worker.RegisterWorkflow(w.UpdateInfoWorkflow)
+	worker.RegisterWorkflow(w.UpdateEntityWorkflow)
 	worker.RegisterWorkflow(w.SignalWorkflow)
 	worker.RegisterWorkflow(w.CronWorkflow)
 	worker.RegisterWorkflow(w.ActivityTimeoutsWorkflow)

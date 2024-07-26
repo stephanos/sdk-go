@@ -38,14 +38,13 @@ import (
 	"testing"
 	"time"
 
-	"go.opentelemetry.io/otel/baggage"
-
 	"github.com/opentracing/opentracing-go"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally/v4"
+	"go.opentelemetry.io/otel/baggage"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
@@ -947,6 +946,43 @@ func (ts *IntegrationTestSuite) TestWorkflowIDReuseIgnoreDuplicateWhileRunning()
 	ts.NoError(err)
 	ts.Equal(run1.GetID(), run3.GetID())
 	ts.NotEqual(run1.GetRunID(), run3.GetRunID())
+}
+
+func (ts *IntegrationTestSuite) TestWorkflowIDConflictPolicy() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	opts := ts.startWorkflowOptions("test-workflowidconflict-" + uuid.New())
+	opts.WorkflowExecutionErrorWhenAlreadyStarted = true
+
+	var alreadyStartedErr *serviceerror.WorkflowExecutionAlreadyStarted
+
+	// Start a workflow
+	run1, err := ts.client.ExecuteWorkflow(ctx, opts, ts.workflows.IDConflictPolicy)
+	ts.NoError(err)
+
+	// Confirm another fails by default
+	_, err = ts.client.ExecuteWorkflow(ctx, opts, ts.workflows.IDConflictPolicy)
+	ts.ErrorAs(err, &alreadyStartedErr)
+
+	// Confirm fails if explicitly given that option
+	opts.WorkflowIDConflictPolicy = enumspb.WORKFLOW_ID_CONFLICT_POLICY_FAIL
+	_, err = ts.client.ExecuteWorkflow(ctx, opts, ts.workflows.IDConflictPolicy)
+	ts.ErrorAs(err, &alreadyStartedErr)
+
+	// Confirm gives back same WorkflowRun if requested
+	opts.WorkflowIDConflictPolicy = enumspb.WORKFLOW_ID_CONFLICT_POLICY_USE_EXISTING
+	run2, err := ts.client.ExecuteWorkflow(ctx, opts, ts.workflows.IDConflictPolicy)
+	ts.Equal(run1.GetRunID(), run2.GetRunID())
+
+	// Confirm terminates and starts new if requested
+	opts.WorkflowIDConflictPolicy = enumspb.WORKFLOW_ID_CONFLICT_POLICY_TERMINATE_EXISTING
+	run3, err := ts.client.ExecuteWorkflow(ctx, opts, ts.workflows.IDConflictPolicy)
+	ts.NotEqual(run1.GetRunID(), run3.GetRunID())
+
+	statusRun1, err := ts.client.DescribeWorkflowExecution(ctx, run1.GetID(), run1.GetRunID())
+	ts.NoError(err)
+	ts.Equal(statusRun1.WorkflowExecutionInfo.Status, enumspb.WORKFLOW_EXECUTION_STATUS_TERMINATED)
 }
 
 func (ts *IntegrationTestSuite) TestChildWFWithRetryPolicy_ShortLived() {
@@ -1917,6 +1953,41 @@ func (ts *IntegrationTestSuite) TestStartDelaySignalWithStart() {
 	ts.NoError(err)
 	ts.Equal(enumspb.EVENT_TYPE_WORKFLOW_EXECUTION_STARTED, event.EventType)
 	ts.Equal(5*time.Second, event.GetWorkflowExecutionStartedEventAttributes().GetFirstWorkflowTaskBackoff().AsDuration())
+}
+
+func (ts *IntegrationTestSuite) TestSignalWithStartIdConflictPolicy() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var invalidArgErr *serviceerror.InvalidArgument
+	opts := ts.startWorkflowOptions("test-signalwithstart-workflowidconflict-" + uuid.New())
+
+	// Start a workflow
+	run1, err := ts.client.SignalWithStartWorkflow(ctx, opts.ID, "signal", true, opts, ts.workflows.IDConflictPolicy)
+	ts.NoError(err)
+
+	// Confirm gives back same WorkflowRun by default
+	run2, err := ts.client.SignalWithStartWorkflow(ctx, opts.ID, "signal", true, opts, ts.workflows.IDConflictPolicy)
+	ts.Equal(run1.GetRunID(), run2.GetRunID())
+
+	// Confirm gives back same WorkflowRun if requested explicitly
+	opts.WorkflowIDConflictPolicy = enumspb.WORKFLOW_ID_CONFLICT_POLICY_USE_EXISTING
+	run3, err := ts.client.SignalWithStartWorkflow(ctx, opts.ID, "signal", true, opts, ts.workflows.IDConflictPolicy)
+	ts.Equal(run1.GetRunID(), run3.GetRunID())
+
+	// Confirm policy to fail is invalid
+	opts.WorkflowIDConflictPolicy = enumspb.WORKFLOW_ID_CONFLICT_POLICY_FAIL
+	_, err = ts.client.SignalWithStartWorkflow(ctx, opts.ID, "signal", true, opts, ts.workflows.IDConflictPolicy)
+	ts.ErrorAs(err, &invalidArgErr)
+
+	// Confirm terminates and starts new if requested
+	opts.WorkflowIDConflictPolicy = enumspb.WORKFLOW_ID_CONFLICT_POLICY_TERMINATE_EXISTING
+	run4, err := ts.client.SignalWithStartWorkflow(ctx, opts.ID, "signal", true, opts, ts.workflows.IDConflictPolicy)
+	ts.NotEqual(run1.GetRunID(), run4.GetRunID())
+
+	statusRun1, err := ts.client.DescribeWorkflowExecution(ctx, run1.GetID(), run1.GetRunID())
+	ts.NoError(err)
+	ts.Equal(statusRun1.WorkflowExecutionInfo.Status, enumspb.WORKFLOW_EXECUTION_STATUS_TERMINATED)
 }
 
 func (ts *IntegrationTestSuite) TestResetWorkflowExecution() {
@@ -3453,6 +3524,137 @@ func (ts *IntegrationTestSuite) TestUpdateSettingHandlerInHandler() {
 	ts.NoError(err)
 	ts.NoError(handle.Get(ctx, nil))
 	ts.NoError(run.Get(ctx, nil))
+}
+
+func (ts *IntegrationTestSuite) TestExecuteWorkflowWithUpdate() {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	var updateResult int
+	var workflowResult int
+
+	startOptions := ts.startWorkflowOptions("test-update-with-start-" + uuid.New())
+	startOptions.EnableEagerStart = false
+
+	// creatoing update operation fails due to (client-side) validation error
+	updateOp, err := client.PrepareUpdateWorkflowOperation(
+		client.UpdateWorkflowOptions{
+			// invalid
+		})
+	ts.Error(err)
+
+	// request fails due to start (server-side) validation error
+	updateOp, err = client.PrepareUpdateWorkflowOperation(
+		client.UpdateWorkflowOptions{
+			UpdateName:   "update",
+			WaitForStage: client.WorkflowUpdateStageCompleted,
+		})
+	ts.NoError(err)
+
+	startOptions.CronSchedule = "invalid!"
+	startOptions.WorkflowOperation = updateOp
+	run, err := ts.client.ExecuteWorkflow(ctx, startOptions, ts.workflows.UpdateEntityWorkflow)
+	ts.ErrorContains(err, "invalid CronSchedule.")
+	ts.Nil(run)
+
+	updateHandle, err := updateOp.Get()
+	ts.ErrorContains(err, "update operation was aborted because workflow start failed")
+	ts.Nil(updateHandle)
+
+	// request fails due to update operation (server-side) validation error
+	updateOp, err = client.PrepareUpdateWorkflowOperation(
+		client.UpdateWorkflowOptions{
+			UpdateName:   "", // invalid
+			WaitForStage: client.WorkflowUpdateStageCompleted,
+		})
+	ts.NoError(err)
+
+	startOptions.CronSchedule = ""
+	startOptions.WorkflowOperation = updateOp
+	run, err = ts.client.ExecuteWorkflow(ctx, startOptions, ts.workflows.UpdateEntityWorkflow)
+	ts.ErrorContains(err, "workflow start was aborted because the workflow operation failed: Update name is not set on request")
+	ts.Nil(run)
+
+	_, err = updateOp.Get()
+	ts.ErrorContains(err, "Update name is not set on request")
+	ts.Nil(updateHandle)
+
+	// request starts workflow, update is rejected
+	updateOp, err = client.PrepareUpdateWorkflowOperation(
+		client.UpdateWorkflowOptions{
+			UpdateName:   "update",
+			Args:         []any{-1}, // rejected update payload
+			WaitForStage: client.WorkflowUpdateStageCompleted,
+		})
+	ts.NoError(err)
+
+	startOptions.WorkflowOperation = updateOp
+	firstRun, err := ts.client.ExecuteWorkflow(ctx, startOptions, ts.workflows.UpdateEntityWorkflow)
+	ts.NoError(err)
+	ts.Nil(run)
+
+	updateHandle, err = updateOp.Get()
+	ts.NoError(err)
+	ts.ErrorContains(updateHandle.Get(ctx, &updateResult), "addend must be non-negative")
+
+	// request fails because workflow is already running, does not send update
+	updateOp, err = client.PrepareUpdateWorkflowOperation(
+		client.UpdateWorkflowOptions{
+			UpdateName:   "update",
+			Args:         []any{1},
+			WaitForStage: client.WorkflowUpdateStageCompleted,
+		})
+	ts.NoError(err)
+
+	startOptions.WorkflowOperation = updateOp
+	run1, err := ts.client.ExecuteWorkflow(ctx, startOptions, ts.workflows.UpdateEntityWorkflow)
+	ts.NoError(err) // TODO: should this be an error despite WorkflowExecutionErrorWhenAlreadyStarted?
+	ts.Equal(firstRun.GetRunID(), run1.GetRunID())
+
+	_, err = updateOp.Get()
+	ts.EqualValues("update operation was aborted because workflow start failed", err.Error())
+
+	// request uses existing workflow, sends update and waits for completion
+	updateOp, err = client.PrepareUpdateWorkflowOperation(
+		client.UpdateWorkflowOptions{
+			UpdateName:   "update",
+			Args:         []any{1},
+			WaitForStage: client.WorkflowUpdateStageCompleted,
+		})
+	ts.NoError(err)
+
+	startOptions.WorkflowIDConflictPolicy = enumspb.WORKFLOW_ID_CONFLICT_POLICY_USE_EXISTING
+	startOptions.WorkflowOperation = updateOp
+	run2, err := ts.client.ExecuteWorkflow(ctx, startOptions, ts.workflows.UpdateEntityWorkflow)
+	ts.NoError(err)
+	ts.Equal(firstRun.GetRunID(), run2.GetRunID())
+
+	updateHandle, err = updateOp.Get()
+	ts.NoError(err)
+	ts.NoError(updateHandle.Get(ctx, &updateResult))
+	ts.Equal(1, updateResult)
+
+	// request uses existing workflow, sends update and waits for acceptance, polls for result, completes workflow
+	updateOp, err = client.PrepareUpdateWorkflowOperation(
+		client.UpdateWorkflowOptions{
+			UpdateName:   "update",
+			Args:         []any{1},
+			WaitForStage: client.WorkflowUpdateStageAccepted,
+		})
+	ts.NoError(err)
+
+	startOptions.WorkflowOperation = updateOp
+	run4, err := ts.client.ExecuteWorkflow(ctx, startOptions, ts.workflows.UpdateEntityWorkflow)
+	ts.NoError(err)
+	ts.Equal(firstRun.GetRunID(), run4.GetRunID())
+
+	updateHandle, err = updateOp.Get()
+	ts.NoError(err)
+	ts.NoError(updateHandle.Get(ctx, &updateResult))
+	ts.Equal(2, updateResult)
+
+	ts.NoError(firstRun.Get(ctx, &workflowResult))
+	ts.Equal(2, workflowResult)
 }
 
 func (ts *IntegrationTestSuite) TestSessionOnWorkerFailure() {
