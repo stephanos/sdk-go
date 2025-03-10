@@ -1678,6 +1678,7 @@ func (w *workflowClientInterceptor) createStartWorkflowRequest(
 		CompletionCallbacks:      in.Options.callbacks,
 		Links:                    in.Options.links,
 		VersioningOverride:       versioningOverrideToProto(in.Options.VersioningOverride),
+		Priority:                 convertToPBPriority(in.Options.Priority),
 		OnConflictOptions:        in.Options.onConflictOptions.ToProto(),
 	}
 
@@ -2054,6 +2055,7 @@ func (w *workflowClientInterceptor) SignalWithStartWorkflow(
 		WorkflowIdConflictPolicy: in.Options.WorkflowIDConflictPolicy,
 		Header:                   header,
 		VersioningOverride:       versioningOverrideToProto(in.Options.VersioningOverride),
+		Priority:                 convertToPBPriority(in.Options.Priority),
 	}
 
 	if in.Options.StartDelay != 0 {
