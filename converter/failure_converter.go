@@ -22,15 +22,16 @@ type encodedFailure struct {
 func EncodeCommonFailureAttributes(dc DataConverter, failure *failurepb.Failure) error {
 	var err error
 
-	failure.EncodedAttributes, err = dc.ToPayload(encodedFailure{
-		Message:    failure.Message,
-		StackTrace: failure.StackTrace,
+	encodedAttrs, err := dc.ToPayload(encodedFailure{
+		Message:    failure.GetMessage(),
+		StackTrace: failure.GetStackTrace(),
 	})
 	if err != nil {
 		return err
 	}
-	failure.Message = "Encoded failure"
-	failure.StackTrace = ""
+	failure.SetEncodedAttributes(encodedAttrs)
+	failure.SetMessage("Encoded failure")
+	failure.SetStackTrace("")
 
 	return nil
 }
@@ -39,7 +40,7 @@ func EncodeCommonFailureAttributes(dc DataConverter, failure *failurepb.Failure)
 func DecodeCommonFailureAttributes(dc DataConverter, failure *failurepb.Failure) {
 	var ea encodedFailure
 	if failure.GetEncodedAttributes() != nil && dc.FromPayload(failure.GetEncodedAttributes(), &ea) == nil {
-		failure.Message = ea.Message
-		failure.StackTrace = ea.StackTrace
+		failure.SetMessage(ea.Message)
+		failure.SetStackTrace(ea.StackTrace)
 	}
 }

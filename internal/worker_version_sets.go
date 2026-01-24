@@ -147,35 +147,27 @@ func (uw *UpdateWorkerBuildIdCompatibilityOptions) validateAndConvertToProto() (
 	if uw.Operation.targetedBuildId() == "" {
 		return nil, errors.New("missing Operation BuildID field")
 	}
-	req := &workflowservice.UpdateWorkerBuildIdCompatibilityRequest{
+	req := workflowservice.UpdateWorkerBuildIdCompatibilityRequest_builder{
 		TaskQueue: uw.TaskQueue,
-	}
+	}.Build()
 
 	switch v := uw.Operation.(type) {
 	case *BuildIDOpAddNewIDInNewDefaultSet:
-		req.Operation = &workflowservice.UpdateWorkerBuildIdCompatibilityRequest_AddNewBuildIdInNewDefaultSet{
-			AddNewBuildIdInNewDefaultSet: v.BuildID,
-		}
+		req.SetAddNewBuildIdInNewDefaultSet(v.BuildID)
 
 	case *BuildIDOpAddNewCompatibleVersion:
 		if v.ExistingCompatibleBuildID == "" {
 			return nil, errors.New("missing ExistingCompatibleBuildID")
 		}
-		req.Operation = &workflowservice.UpdateWorkerBuildIdCompatibilityRequest_AddNewCompatibleBuildId{
-			AddNewCompatibleBuildId: &workflowservice.UpdateWorkerBuildIdCompatibilityRequest_AddNewCompatibleVersion{
-				NewBuildId:                v.BuildID,
-				ExistingCompatibleBuildId: v.ExistingCompatibleBuildID,
-				MakeSetDefault:            v.MakeSetDefault,
-			},
-		}
+		req.SetAddNewCompatibleBuildId(workflowservice.UpdateWorkerBuildIdCompatibilityRequest_AddNewCompatibleVersion_builder{
+			NewBuildId:                v.BuildID,
+			ExistingCompatibleBuildId: v.ExistingCompatibleBuildID,
+			MakeSetDefault:            v.MakeSetDefault,
+		}.Build())
 	case *BuildIDOpPromoteSet:
-		req.Operation = &workflowservice.UpdateWorkerBuildIdCompatibilityRequest_PromoteSetByBuildId{
-			PromoteSetByBuildId: v.BuildID,
-		}
+		req.SetPromoteSetByBuildId(v.BuildID)
 	case *BuildIDOpPromoteIDWithinSet:
-		req.Operation = &workflowservice.UpdateWorkerBuildIdCompatibilityRequest_PromoteBuildIdWithinSet{
-			PromoteBuildIdWithinSet: v.BuildID,
-		}
+		req.SetPromoteBuildIdWithinSet(v.BuildID)
 	}
 
 	return req, nil

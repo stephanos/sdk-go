@@ -83,17 +83,17 @@ func TestGetLocalActivityOptions(t *testing.T) {
 
 func TestConvertRetryPolicy(t *testing.T) {
 	someDuration := time.Minute
-	pbRetryPolicy := commonpb.RetryPolicy{
+	pbRetryPolicy := commonpb.RetryPolicy_builder{
 		InitialInterval:        durationpb.New(someDuration),
 		MaximumInterval:        durationpb.New(someDuration),
 		BackoffCoefficient:     1,
 		MaximumAttempts:        2,
 		NonRetryableErrorTypes: []string{"some_error"},
-	}
+	}.Build()
 
-	assertNonZero(t, &pbRetryPolicy)
+	assertNonZero(t, pbRetryPolicy)
 	// Check that converting from/to commonpb.RetryPolicy is transparent
-	assert.Equal(t, &pbRetryPolicy, convertToPBRetryPolicy(convertFromPBRetryPolicy(&pbRetryPolicy)))
+	assert.Equal(t, pbRetryPolicy, convertToPBRetryPolicy(convertFromPBRetryPolicy(pbRetryPolicy)))
 }
 
 func newTestWorkflowContext() Context {

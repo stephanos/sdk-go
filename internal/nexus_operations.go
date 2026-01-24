@@ -259,19 +259,17 @@ func protoFailureToNexusFailure(failure *nexuspb.Failure) nexus.Failure {
 
 // nexusOperationFailure is a utility in use by the test environment.
 func nexusOperationFailure(params executeNexusOperationParams, token string, cause *failurepb.Failure) *failurepb.Failure {
-	return &failurepb.Failure{
+	return failurepb.Failure_builder{
 		Message: "nexus operation completed unsuccessfully",
-		FailureInfo: &failurepb.Failure_NexusOperationExecutionFailureInfo{
-			NexusOperationExecutionFailureInfo: &failurepb.NexusOperationFailureInfo{
-				Endpoint:       params.client.Endpoint(),
-				Service:        params.client.Service(),
-				Operation:      params.operation,
-				OperationToken: token,
-				OperationId:    token, // Also populate ID for backwards compatibility.
-			},
-		},
+		NexusOperationExecutionFailureInfo: failurepb.NexusOperationFailureInfo_builder{
+			Endpoint:       params.client.Endpoint(),
+			Service:        params.client.Service(),
+			Operation:      params.operation,
+			OperationToken: token,
+			OperationId:    token, // Also populate ID for backwards compatibility.
+		}.Build(),
 		Cause: cause,
-	}
+	}.Build()
 }
 
 // nexusFailureToAPIFailure converts a Nexus Failure to an API proto Failure.
@@ -289,17 +287,15 @@ func nexusFailureToAPIFailure(failure nexus.Failure, retryable bool) (*failurepb
 		if err != nil {
 			return nil, err
 		}
-		apiFailure.FailureInfo = &failurepb.Failure_ApplicationFailureInfo{
-			ApplicationFailureInfo: &failurepb.ApplicationFailureInfo{
-				// Make up a type here, it's not part of the Nexus Failure spec.
-				Type:         "NexusFailure",
-				Details:      payloads,
-				NonRetryable: !retryable,
-			},
-		}
+		apiFailure.SetApplicationFailureInfo(failurepb.ApplicationFailureInfo_builder{
+			// Make up a type here, it's not part of the Nexus Failure spec.
+			Type:         "NexusFailure",
+			Details:      payloads,
+			NonRetryable: !retryable,
+		}.Build())
 	}
 	// Ensure this always gets written.
-	apiFailure.Message = failure.Message
+	apiFailure.SetMessage(failure.Message)
 	return apiFailure, nil
 }
 
@@ -313,16 +309,16 @@ func nexusFailureMetadataToPayloads(failure nexus.Failure) (*commonpb.Payloads, 
 	if err != nil {
 		return nil, err
 	}
-	return &commonpb.Payloads{
+	return commonpb.Payloads_builder{
 		Payloads: []*commonpb.Payload{
-			{
+			commonpb.Payload_builder{
 				Metadata: map[string][]byte{
 					"encoding": []byte("json/plain"),
 				},
 				Data: data,
-			},
+			}.Build(),
 		},
-	}, err
+	}.Build(), err
 }
 
 func apiOperationErrorToNexusOperationError(opErr *nexuspb.UnsuccessfulOperationError) *nexus.OperationError {
@@ -384,14 +380,12 @@ func operationErrorToTemporalFailure(opErr *nexus.OperationError) (*failurepb.Fa
 		if err != nil {
 			return nil, err
 		}
-		return &failurepb.Failure{
+		return failurepb.Failure_builder{
 			Message: nexusFailure.Message,
-			FailureInfo: &failurepb.Failure_CanceledFailureInfo{
-				CanceledFailureInfo: &failurepb.CanceledFailureInfo{
-					Details: payloads,
-				},
-			},
-		}, nil
+			CanceledFailureInfo: failurepb.CanceledFailureInfo_builder{
+				Details: payloads,
+			}.Build(),
+		}.Build(), nil
 	}
 
 	return nexusFailureToAPIFailure(nexusFailure, false)
@@ -548,7 +542,7 @@ func (t *testSuiteClientForNexusOperations) ExecuteWorkflow(ctx context.Context,
 			} else {
 				var payload *commonpb.Payload
 				if len(result.GetPayloads()) > 0 {
-					payload = result.Payloads[0]
+					payload = result.GetPayloads()[0]
 				}
 				t.env.resolveNexusOperation(seq, operationToken, payload, nil)
 			}

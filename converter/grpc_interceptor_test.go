@@ -34,7 +34,7 @@ func encodedPayloads() *commonpb.Payloads {
 }
 
 func payloadEncoding(payloads *commonpb.Payloads) string {
-	return string(payloads.Payloads[0].Metadata[MetadataEncoding])
+	return string(payloads.GetPayloads()[0].GetMetadata()[MetadataEncoding])
 }
 
 func TestPayloadCodecGRPCClientInterceptor(t *testing.T) {
@@ -61,13 +61,13 @@ func TestPayloadCodecGRPCClientInterceptor(t *testing.T) {
 
 	_, err = client.StartWorkflowExecution(
 		context.Background(),
-		&workflowservice.StartWorkflowExecutionRequest{
+		workflowservice.StartWorkflowExecutionRequest_builder{
 			Input: unencodedPayloads(),
-		},
+		}.Build(),
 	)
 	require.NoError(err)
 
-	require.Equal("binary/zlib", payloadEncoding(server.startWorkflowExecutionRequest.Input))
+	require.Equal("binary/zlib", payloadEncoding(server.startWorkflowExecutionRequest.GetInput()))
 
 	response, err := client.PollActivityTaskQueue(
 		context.Background(),
@@ -75,7 +75,7 @@ func TestPayloadCodecGRPCClientInterceptor(t *testing.T) {
 	)
 	require.NoError(err)
 
-	require.Equal("json/plain", payloadEncoding(response.Input))
+	require.Equal("json/plain", payloadEncoding(response.GetInput()))
 }
 
 func TestFailureGRPCClientInterceptor(t *testing.T) {
@@ -102,17 +102,17 @@ func TestFailureGRPCClientInterceptor(t *testing.T) {
 
 	_, err = client.RespondWorkflowTaskFailed(
 		context.Background(),
-		&workflowservice.RespondWorkflowTaskFailedRequest{
-			Failure: &failure.Failure{
+		workflowservice.RespondWorkflowTaskFailedRequest_builder{
+			Failure: failure.Failure_builder{
 				Message:    "internal error: code 123",
 				StackTrace: "internal_file:12",
-			},
-		},
+			}.Build(),
+		}.Build(),
 	)
 	require.NoError(err)
 
-	require.Equal("Encoded failure", server.respondWorkflowTaskFailedRequest.Failure.Message)
-	require.Equal("", server.respondWorkflowTaskFailedRequest.Failure.StackTrace)
+	require.Equal("Encoded failure", server.respondWorkflowTaskFailedRequest.GetFailure().GetMessage())
+	require.Equal("", server.respondWorkflowTaskFailedRequest.GetFailure().GetStackTrace())
 
 	res, err := client.PollWorkflowTaskQueue(
 		context.Background(),
@@ -120,12 +120,12 @@ func TestFailureGRPCClientInterceptor(t *testing.T) {
 	)
 	require.NoError(err)
 
-	attrs, ok := res.History.Events[0].Attributes.(*history.HistoryEvent_ChildWorkflowExecutionFailedEventAttributes)
+	attrs, ok := res.GetHistory().GetEvents()[0].Attributes.(*history.HistoryEvent_ChildWorkflowExecutionFailedEventAttributes)
 	require.True(ok)
-	f := attrs.ChildWorkflowExecutionFailedEventAttributes.Failure
+	f := attrs.ChildWorkflowExecutionFailedEventAttributes.GetFailure()
 
-	require.Equal("internal error: code 123", f.Message)
-	require.Equal("internal_file:12", f.StackTrace)
+	require.Equal("internal error: code 123", f.GetMessage())
+	require.Equal("internal_file:12", f.GetStackTrace())
 }
 
 type testGRPCServer struct {
@@ -204,36 +204,34 @@ func (t *testGRPCServer) PollWorkflowTaskQueue(
 	ctx context.Context,
 	req *workflowservice.PollWorkflowTaskQueueRequest,
 ) (*workflowservice.PollWorkflowTaskQueueResponse, error) {
-	f := failure.Failure{
+	f := failure.Failure_builder{
 		Message:    "internal error: code 123",
 		StackTrace: "internal_file:12",
-	}
-	err := EncodeCommonFailureAttributes(GetDefaultDataConverter(), &f)
+	}.Build()
+	err := EncodeCommonFailureAttributes(GetDefaultDataConverter(), f)
 	if err != nil {
 		return nil, err
 	}
 
-	return &workflowservice.PollWorkflowTaskQueueResponse{
-		History: &history.History{
+	return workflowservice.PollWorkflowTaskQueueResponse_builder{
+		History: history.History_builder{
 			Events: []*history.HistoryEvent{
-				{
+				history.HistoryEvent_builder{
 					EventType: enums.EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_FAILED,
-					Attributes: &history.HistoryEvent_ChildWorkflowExecutionFailedEventAttributes{
-						ChildWorkflowExecutionFailedEventAttributes: &history.ChildWorkflowExecutionFailedEventAttributes{
-							Failure: &f,
-						},
-					},
-				},
+					ChildWorkflowExecutionFailedEventAttributes: history.ChildWorkflowExecutionFailedEventAttributes_builder{
+						Failure: f,
+					}.Build(),
+				}.Build(),
 			},
-		},
-	}, nil
+		}.Build(),
+	}.Build(), nil
 }
 
 func (t *testGRPCServer) PollActivityTaskQueue(
 	ctx context.Context,
 	req *workflowservice.PollActivityTaskQueueRequest,
 ) (*workflowservice.PollActivityTaskQueueResponse, error) {
-	return &workflowservice.PollActivityTaskQueueResponse{
+	return workflowservice.PollActivityTaskQueueResponse_builder{
 		Input: encodedPayloads(),
-	}, nil
+	}.Build(), nil
 }

@@ -260,60 +260,46 @@ func (uw *UpdateWorkerVersioningRulesOptions) validateAndConvertToProto(namespac
 	if err := uw.Operation.validateOp(); err != nil {
 		return nil, err
 	}
-	req := &workflowservice.UpdateWorkerVersioningRulesRequest{
+	req := workflowservice.UpdateWorkerVersioningRulesRequest_builder{
 		Namespace:     namespace,
 		TaskQueue:     uw.TaskQueue,
 		ConflictToken: uw.ConflictToken.token,
-	}
+	}.Build()
 
 	switch v := uw.Operation.(type) {
 	case *VersioningOperationInsertAssignmentRule:
-		req.Operation = &workflowservice.UpdateWorkerVersioningRulesRequest_InsertAssignmentRule{
-			InsertAssignmentRule: &workflowservice.UpdateWorkerVersioningRulesRequest_InsertBuildIdAssignmentRule{
-				RuleIndex: v.RuleIndex,
-				Rule:      versioningAssignmentRuleToProto(&v.Rule),
-			},
-		}
+		req.SetInsertAssignmentRule(workflowservice.UpdateWorkerVersioningRulesRequest_InsertBuildIdAssignmentRule_builder{
+			RuleIndex: v.RuleIndex,
+			Rule:      versioningAssignmentRuleToProto(&v.Rule),
+		}.Build())
 	case *VersioningOperationReplaceAssignmentRule:
-		req.Operation = &workflowservice.UpdateWorkerVersioningRulesRequest_ReplaceAssignmentRule{
-			ReplaceAssignmentRule: &workflowservice.UpdateWorkerVersioningRulesRequest_ReplaceBuildIdAssignmentRule{
-				RuleIndex: v.RuleIndex,
-				Rule:      versioningAssignmentRuleToProto(&v.Rule),
-				Force:     v.Force,
-			},
-		}
+		req.SetReplaceAssignmentRule(workflowservice.UpdateWorkerVersioningRulesRequest_ReplaceBuildIdAssignmentRule_builder{
+			RuleIndex: v.RuleIndex,
+			Rule:      versioningAssignmentRuleToProto(&v.Rule),
+			Force:     v.Force,
+		}.Build())
 	case *VersioningOperationDeleteAssignmentRule:
-		req.Operation = &workflowservice.UpdateWorkerVersioningRulesRequest_DeleteAssignmentRule{
-			DeleteAssignmentRule: &workflowservice.UpdateWorkerVersioningRulesRequest_DeleteBuildIdAssignmentRule{
-				RuleIndex: v.RuleIndex,
-				Force:     v.Force,
-			},
-		}
+		req.SetDeleteAssignmentRule(workflowservice.UpdateWorkerVersioningRulesRequest_DeleteBuildIdAssignmentRule_builder{
+			RuleIndex: v.RuleIndex,
+			Force:     v.Force,
+		}.Build())
 	case *VersioningOperationAddRedirectRule:
-		req.Operation = &workflowservice.UpdateWorkerVersioningRulesRequest_AddCompatibleRedirectRule{
-			AddCompatibleRedirectRule: &workflowservice.UpdateWorkerVersioningRulesRequest_AddCompatibleBuildIdRedirectRule{
-				Rule: versioningRedirectRuleToProto(&v.Rule),
-			},
-		}
+		req.SetAddCompatibleRedirectRule(workflowservice.UpdateWorkerVersioningRulesRequest_AddCompatibleBuildIdRedirectRule_builder{
+			Rule: versioningRedirectRuleToProto(&v.Rule),
+		}.Build())
 	case *VersioningOperationReplaceRedirectRule:
-		req.Operation = &workflowservice.UpdateWorkerVersioningRulesRequest_ReplaceCompatibleRedirectRule{
-			ReplaceCompatibleRedirectRule: &workflowservice.UpdateWorkerVersioningRulesRequest_ReplaceCompatibleBuildIdRedirectRule{
-				Rule: versioningRedirectRuleToProto(&v.Rule),
-			},
-		}
+		req.SetReplaceCompatibleRedirectRule(workflowservice.UpdateWorkerVersioningRulesRequest_ReplaceCompatibleBuildIdRedirectRule_builder{
+			Rule: versioningRedirectRuleToProto(&v.Rule),
+		}.Build())
 	case *VersioningOperationDeleteRedirectRule:
-		req.Operation = &workflowservice.UpdateWorkerVersioningRulesRequest_DeleteCompatibleRedirectRule{
-			DeleteCompatibleRedirectRule: &workflowservice.UpdateWorkerVersioningRulesRequest_DeleteCompatibleBuildIdRedirectRule{
-				SourceBuildId: v.SourceBuildID,
-			},
-		}
+		req.SetDeleteCompatibleRedirectRule(workflowservice.UpdateWorkerVersioningRulesRequest_DeleteCompatibleBuildIdRedirectRule_builder{
+			SourceBuildId: v.SourceBuildID,
+		}.Build())
 	case *VersioningOperationCommitBuildID:
-		req.Operation = &workflowservice.UpdateWorkerVersioningRulesRequest_CommitBuildId_{
-			CommitBuildId: &workflowservice.UpdateWorkerVersioningRulesRequest_CommitBuildId{
-				TargetBuildId: v.TargetBuildID,
-				Force:         v.Force,
-			},
-		}
+		req.SetCommitBuildId(workflowservice.UpdateWorkerVersioningRulesRequest_CommitBuildId_builder{
+			TargetBuildId: v.TargetBuildID,
+			Force:         v.Force,
+		}.Build())
 	default:
 		return nil, errors.New("converting an invalid operation")
 	}
@@ -341,10 +327,10 @@ func (gw *GetWorkerVersioningOptions) validateAndConvertToProto(namespace string
 	if gw.TaskQueue == "" {
 		return nil, errors.New("missing  TaskQueue field")
 	}
-	req := &workflowservice.GetWorkerVersioningRulesRequest{
+	req := workflowservice.GetWorkerVersioningRulesRequest_builder{
 		Namespace: namespace,
 		TaskQueue: gw.TaskQueue,
-	}
+	}.Build()
 
 	return req, nil
 }
@@ -364,17 +350,15 @@ type WorkerVersioningRules struct {
 
 func versioningAssignmentRuleToProto(rule *VersioningAssignmentRule) *taskqueuepb.BuildIdAssignmentRule {
 	// Assumed `rule` already validated
-	result := &taskqueuepb.BuildIdAssignmentRule{
+	result := taskqueuepb.BuildIdAssignmentRule_builder{
 		TargetBuildId: rule.TargetBuildID,
-	}
+	}.Build()
 
 	switch r := rule.Ramp.(type) {
 	case *VersioningRampByPercentage:
-		result.Ramp = &taskqueuepb.BuildIdAssignmentRule_PercentageRamp{
-			PercentageRamp: &taskqueuepb.RampByPercentage{
-				RampPercentage: r.Percentage,
-			},
-		}
+		result.SetPercentageRamp(taskqueuepb.RampByPercentage_builder{
+			RampPercentage: r.Percentage,
+		}.Build())
 	}
 
 	return result
@@ -382,10 +366,10 @@ func versioningAssignmentRuleToProto(rule *VersioningAssignmentRule) *taskqueuep
 
 func versioningRedirectRuleToProto(rule *VersioningRedirectRule) *taskqueuepb.CompatibleBuildIdRedirectRule {
 	// Assumed `rule` already validated
-	result := &taskqueuepb.CompatibleBuildIdRedirectRule{
+	result := taskqueuepb.CompatibleBuildIdRedirectRule_builder{
 		SourceBuildId: rule.SourceBuildID,
 		TargetBuildId: rule.TargetBuildID,
-	}
+	}.Build()
 
 	return result
 }
@@ -401,10 +385,10 @@ func versioningAssignmentRuleFromProto(rule *taskqueuepb.BuildIdAssignmentRule, 
 		},
 	}
 
-	switch r := rule.GetRamp().(type) {
-	case *taskqueuepb.BuildIdAssignmentRule_PercentageRamp:
+	switch rule.WhichRamp() {
+	case taskqueuepb.BuildIdAssignmentRule_PercentageRamp_case:
 		result.Rule.Ramp = &VersioningRampByPercentage{
-			Percentage: r.PercentageRamp.GetRampPercentage(),
+			Percentage: rule.GetPercentageRamp().GetRampPercentage(),
 		}
 	}
 

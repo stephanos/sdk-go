@@ -40,9 +40,9 @@ func (s *WorkflowTestSuiteUnitTest) SetupSuite() {
 	s.localActivityOptions = LocalActivityOptions{
 		ScheduleToCloseTimeout: 3 * time.Second,
 	}
-	s.header = &commonpb.Header{
+	s.header = commonpb.Header_builder{
 		Fields: map[string]*commonpb.Payload{"test": encodeString(s.T(), "test-data")},
-	}
+	}.Build()
 	s.contextPropagators = []ContextPropagator{NewKeysPropagator([]string{"test"})}
 }
 
@@ -401,11 +401,11 @@ func (s *WorkflowTestSuiteUnitTest) Test_ActivityWithHeaderContext() {
 	}
 
 	env := s.NewTestActivityEnvironment()
-	env.SetHeader(&commonpb.Header{
+	env.SetHeader(commonpb.Header_builder{
 		Fields: map[string]*commonpb.Payload{
 			testHeader: encodeString(s.T(), "test-data"),
 		},
-	})
+	}.Build())
 	env.SetContextPropagators([]ContextPropagator{NewKeysPropagator([]string{testHeader})})
 
 	env.RegisterActivity(activityWithUserContext)
@@ -1700,7 +1700,7 @@ func (s *WorkflowTestSuiteUnitTest) Test_GetVersion() {
 		// test searchable change version
 		wfInfo := GetWorkflowInfo(ctx)
 		s.NotNil(wfInfo.SearchAttributes)
-		changeVersionsBytes, ok := wfInfo.SearchAttributes.IndexedFields[TemporalChangeVersion]
+		changeVersionsBytes, ok := wfInfo.SearchAttributes.GetIndexedFields()[TemporalChangeVersion]
 		s.True(ok)
 		var changeVersions []string
 		err = converter.GetDefaultDataConverter().FromPayload(changeVersionsBytes, &changeVersions)
@@ -1759,7 +1759,7 @@ func (s *WorkflowTestSuiteUnitTest) Test_MockGetVersion() {
 		// test searchable change version
 		wfInfo := GetWorkflowInfo(ctx)
 		s.NotNil(wfInfo.SearchAttributes)
-		changeVersionsBytes, ok := wfInfo.SearchAttributes.IndexedFields[TemporalChangeVersion]
+		changeVersionsBytes, ok := wfInfo.SearchAttributes.GetIndexedFields()[TemporalChangeVersion]
 		s.True(ok)
 		var changeVersions []string
 		err = converter.GetDefaultDataConverter().FromPayload(changeVersionsBytes, &changeVersions)
@@ -1829,7 +1829,7 @@ func (s *WorkflowTestSuiteUnitTest) Test_MockUpsertSearchAttributes() {
 
 		wfInfo = GetWorkflowInfo(ctx)
 		s.NotNil(wfInfo.SearchAttributes)
-		valBytes := wfInfo.SearchAttributes.IndexedFields["CustomIntField"]
+		valBytes := wfInfo.SearchAttributes.GetIndexedFields()["CustomIntField"]
 		var result int
 		_ = converter.GetDefaultDataConverter().FromPayload(valBytes, &result)
 		s.Equal(1, result)
@@ -1930,7 +1930,7 @@ func (s *WorkflowTestSuiteUnitTest) Test_MockUpsertMemo() {
 
 		wfInfo = GetWorkflowInfo(ctx)
 		s.NotNil(wfInfo.Memo)
-		valBytes := wfInfo.Memo.Fields["CustomIntField"]
+		valBytes := wfInfo.Memo.GetFields()["CustomIntField"]
 		var result int
 		_ = converter.GetDefaultDataConverter().FromPayload(valBytes, &result)
 		s.Equal(1, result)
@@ -1994,22 +1994,23 @@ func (s *WorkflowTestSuiteUnitTest) Test_ActivityWithPointerTypes() {
 func (s *WorkflowTestSuiteUnitTest) Test_ActivityWithProtoPayload() {
 	var actualValues []string
 
-	activitySingleFn := func(ctx context.Context, wf1 *commonpb.Payloads, wf2 *commonpb.Payloads) (commonpb.Payloads, error) {
+	activitySingleFn := func(ctx context.Context, wf1 *commonpb.Payloads, wf2 *commonpb.Payloads) (*commonpb.Payloads, error) {
 		actualValues = append(actualValues, string(wf1.GetPayloads()[0].GetData()))
 		actualValues = append(actualValues, string(wf1.GetPayloads()[0].GetMetadata()["encoding"]))
 		actualValues = append(actualValues, string(wf2.GetPayloads()[0].GetData()))
 
 		// If return type is *commonpb.Payloads it will be automatically unwrapped (this is side effect of internal impementation).
 		// commonpb.Payloads type is returned as is.
-		return commonpb.Payloads{Payloads: []*commonpb.Payload{{Data: []byte("result")}}}, nil
+		// DO NOT SUBMIT: fix callers to work with a pointer (go/goprotoapi-findings#message-value)
+		return commonpb.Payloads_builder{Payloads: []*commonpb.Payload{commonpb.Payload_builder{Data: []byte("result")}.Build()}}.Build(), nil
 	}
 
-	input1 := &commonpb.Payloads{Payloads: []*commonpb.Payload{{ // This will be JSON
+	input1 := commonpb.Payloads_builder{Payloads: []*commonpb.Payload{commonpb.Payload_builder{ // This will be JSON
 		Metadata: map[string][]byte{
 			"encoding": []byte("someencoding"),
 		},
-		Data: []byte("input1")}}}
-	input2 := &commonpb.Payloads{Payloads: []*commonpb.Payload{{Data: []byte("input2")}}}
+		Data: []byte("input1")}.Build()}}.Build()
+	input2 := commonpb.Payloads_builder{Payloads: []*commonpb.Payload{commonpb.Payload_builder{Data: []byte("input2")}.Build()}}.Build()
 	env := s.NewTestActivityEnvironment()
 	env.RegisterActivity(activitySingleFn)
 	payload, err := env.ExecuteActivity(activitySingleFn, input1, input2)
@@ -2018,30 +2019,30 @@ func (s *WorkflowTestSuiteUnitTest) Test_ActivityWithProtoPayload() {
 
 	var ret commonpb.Payloads
 	_ = payload.Get(&ret)
-	s.True(proto.Equal(&commonpb.Payloads{Payloads: []*commonpb.Payload{{Data: []byte("result")}}}, &ret))
+	s.True(proto.Equal(commonpb.Payloads_builder{Payloads: []*commonpb.Payload{commonpb.Payload_builder{Data: []byte("result")}.Build()}}.Build(), &ret))
 }
 
 func (s *WorkflowTestSuiteUnitTest) Test_ActivityWithRandomProto() {
 	var actualValues []string
 
 	activitySingleFn := func(ctx context.Context, wf1 *commonpb.WorkflowType, wf2 *commonpb.DataBlob) (*commonpb.WorkflowType, error) {
-		actualValues = append(actualValues, wf1.Name)
-		actualValues = append(actualValues, wf2.EncodingType.String())
-		return &commonpb.WorkflowType{Name: "result"}, nil
+		actualValues = append(actualValues, wf1.GetName())
+		actualValues = append(actualValues, wf2.GetEncodingType().String())
+		return commonpb.WorkflowType_builder{Name: "result"}.Build(), nil
 	}
 
-	input1 := commonpb.WorkflowType{Name: "input1"}
-	input2 := &commonpb.DataBlob{EncodingType: enumspb.ENCODING_TYPE_PROTO3}
+	input1 := commonpb.WorkflowType_builder{Name: "input1"}.Build()
+	input2 := commonpb.DataBlob_builder{EncodingType: enumspb.ENCODING_TYPE_PROTO3}.Build()
 	env := s.NewTestActivityEnvironment()
 	env.RegisterActivity(activitySingleFn)
-	payload, err := env.ExecuteActivity(activitySingleFn, &input1, input2)
+	payload, err := env.ExecuteActivity(activitySingleFn, input1, input2)
 
 	s.NoError(err)
 	s.EqualValues([]string{"input1", "Proto3"}, actualValues)
 
 	var ret *commonpb.WorkflowType
 	_ = payload.Get(&ret)
-	s.True(proto.Equal(&commonpb.WorkflowType{Name: "result"}, ret))
+	s.True(proto.Equal(commonpb.WorkflowType_builder{Name: "result"}.Build(), ret))
 }
 
 func (s *WorkflowTestSuiteUnitTest) Test_ActivityRegistration() {
@@ -2178,11 +2179,11 @@ func (s *WorkflowTestSuiteUnitTest) Test_WorkflowHeaderContext() {
 	}
 
 	env := s.NewTestWorkflowEnvironment()
-	env.SetHeader(&commonpb.Header{
+	env.SetHeader(commonpb.Header_builder{
 		Fields: map[string]*commonpb.Payload{
 			testHeader: encodeString(s.T(), "test-data"),
 		},
-	})
+	}.Build())
 	env.SetContextPropagators([]ContextPropagator{NewKeysPropagator([]string{testHeader})})
 	env.RegisterActivity(testActivityContext)
 	env.RegisterWorkflow(testWorkflowContext)
@@ -2222,10 +2223,10 @@ func (s *WorkflowTestSuiteUnitTest) Test_ChildWorkflowContextPropagation() {
 	}
 
 	env := s.NewTestWorkflowEnvironment()
-	env.SetHeader(&commonpb.Header{
+	env.SetHeader(commonpb.Header_builder{
 		Fields: map[string]*commonpb.Payload{
 			testHeader: encodeString(s.T(), "test-data")},
-	})
+	}.Build())
 	env.SetContextPropagators([]ContextPropagator{NewKeysPropagator([]string{testHeader})})
 
 	env.RegisterWorkflow(childWorkflowFn)
@@ -2576,11 +2577,11 @@ func (s *WorkflowTestSuiteUnitTest) Test_LocalActivityWithHeaderContext() {
 	}
 
 	env := s.NewTestActivityEnvironment()
-	env.SetHeader(&commonpb.Header{
+	env.SetHeader(commonpb.Header_builder{
 		Fields: map[string]*commonpb.Payload{
 			testHeader: encodeString(s.T(), "test-data"),
 		},
-	})
+	}.Build())
 	env.SetContextPropagators([]ContextPropagator{NewKeysPropagator([]string{testHeader})})
 
 	env.RegisterActivity(activityWithUserContext)

@@ -180,7 +180,7 @@ type (
 		ConflictToken []byte
 
 		// PreviousVersion - The Version that was current before executing this operation, if any.
-        //
+		//
 		// Deprecated: in favor of API idempotency. Use `Describe` before this API to get the previous
 		// state. Pass the `ConflictToken` returned by `Describe` to this API to avoid race conditions.
 		PreviousVersion *WorkerDeploymentVersion

@@ -250,38 +250,38 @@ func testActivity(context.Context) error {
 func (s *internalWorkerTestSuite) TestReplayWorkflowHistory() {
 	taskQueue := "taskQueue1"
 	testEvents := []*historypb.HistoryEvent{
-		createTestEventWorkflowExecutionStarted(1, &historypb.WorkflowExecutionStartedEventAttributes{
-			WorkflowType: &commonpb.WorkflowType{Name: "testReplayWorkflow"},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
+		createTestEventWorkflowExecutionStarted(1, historypb.WorkflowExecutionStartedEventAttributes_builder{
+			WorkflowType: commonpb.WorkflowType_builder{Name: "testReplayWorkflow"}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
 			Input:        testEncodeFunctionArgs(converter.GetDefaultDataConverter()),
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(2, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(3),
 		createTestEventWorkflowTaskCompleted(4, &historypb.WorkflowTaskCompletedEventAttributes{}),
-		createTestEventActivityTaskScheduled(5, &historypb.ActivityTaskScheduledEventAttributes{
+		createTestEventActivityTaskScheduled(5, historypb.ActivityTaskScheduledEventAttributes_builder{
 			ActivityId:   "5",
-			ActivityType: &commonpb.ActivityType{Name: "testActivity"},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
-		}),
-		createTestEventActivityTaskStarted(6, &historypb.ActivityTaskStartedEventAttributes{
+			ActivityType: commonpb.ActivityType_builder{Name: "testActivity"}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
+		}.Build()),
+		createTestEventActivityTaskStarted(6, historypb.ActivityTaskStartedEventAttributes_builder{
 			ScheduledEventId: 5,
-		}),
-		createTestEventActivityTaskCompleted(7, &historypb.ActivityTaskCompletedEventAttributes{
+		}.Build()),
+		createTestEventActivityTaskCompleted(7, historypb.ActivityTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 5,
 			StartedEventId:   6,
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(8, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(9),
-		createTestEventWorkflowTaskCompleted(10, &historypb.WorkflowTaskCompletedEventAttributes{
+		createTestEventWorkflowTaskCompleted(10, historypb.WorkflowTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 8,
 			StartedEventId:   9,
-		}),
-		createTestEventWorkflowExecutionCompleted(11, &historypb.WorkflowExecutionCompletedEventAttributes{
+		}.Build()),
+		createTestEventWorkflowExecutionCompleted(11, historypb.WorkflowExecutionCompletedEventAttributes_builder{
 			WorkflowTaskCompletedEventId: 10,
-		}),
+		}.Build()),
 	}
 
-	history := &historypb.History{Events: testEvents}
+	history := historypb.History_builder{Events: testEvents}.Build()
 	logger := getLogger()
 	replayer, err := NewWorkflowReplayer(WorkflowReplayerOptions{})
 	require.NoError(s.T(), err)
@@ -293,16 +293,16 @@ func (s *internalWorkerTestSuite) TestReplayWorkflowHistory() {
 func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_IncompleteWorkflowExecution() {
 	taskQueue := "taskQueue1"
 	testEvents := []*historypb.HistoryEvent{
-		createTestEventWorkflowExecutionStarted(1, &historypb.WorkflowExecutionStartedEventAttributes{
-			WorkflowType: &commonpb.WorkflowType{Name: "testReplayWorkflow"},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
+		createTestEventWorkflowExecutionStarted(1, historypb.WorkflowExecutionStartedEventAttributes_builder{
+			WorkflowType: commonpb.WorkflowType_builder{Name: "testReplayWorkflow"}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
 			Input:        testEncodeFunctionArgs(converter.GetDefaultDataConverter()),
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(2, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(3),
 	}
 
-	history := &historypb.History{Events: testEvents}
+	history := historypb.History_builder{Events: testEvents}.Build()
 	logger := getLogger()
 	replayer, err := NewWorkflowReplayer(WorkflowReplayerOptions{})
 	require.NoError(s.T(), err)
@@ -314,32 +314,32 @@ func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_IncompleteWorkflowEx
 func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_LocalActivity() {
 	taskQueue := "taskQueue1"
 	testEvents := []*historypb.HistoryEvent{
-		createTestEventWorkflowExecutionStarted(1, &historypb.WorkflowExecutionStartedEventAttributes{
-			WorkflowType: &commonpb.WorkflowType{Name: "testReplayWorkflowLocalActivity"},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
+		createTestEventWorkflowExecutionStarted(1, historypb.WorkflowExecutionStartedEventAttributes_builder{
+			WorkflowType: commonpb.WorkflowType_builder{Name: "testReplayWorkflowLocalActivity"}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
 			Input:        testEncodeFunctionArgs(converter.GetDefaultDataConverter()),
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(2, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(3),
 		createTestEventWorkflowTaskCompleted(4, &historypb.WorkflowTaskCompletedEventAttributes{}),
 
-		createTestEventMarkerRecorded(5, &historypb.MarkerRecordedEventAttributes{
+		createTestEventMarkerRecorded(5, historypb.MarkerRecordedEventAttributes_builder{
 			MarkerName:                   localActivityMarkerName,
 			Details:                      s.createLocalActivityMarkerDataForTest("1"),
 			WorkflowTaskCompletedEventId: 4,
-		}),
-		createTestEventMarkerRecorded(6, &historypb.MarkerRecordedEventAttributes{
+		}.Build()),
+		createTestEventMarkerRecorded(6, historypb.MarkerRecordedEventAttributes_builder{
 			MarkerName:                   localActivityMarkerName,
 			Details:                      s.createLocalActivityMarkerDataForTest("2"),
 			WorkflowTaskCompletedEventId: 4,
-		}),
+		}.Build()),
 
-		createTestEventWorkflowExecutionCompleted(7, &historypb.WorkflowExecutionCompletedEventAttributes{
+		createTestEventWorkflowExecutionCompleted(7, historypb.WorkflowExecutionCompletedEventAttributes_builder{
 			WorkflowTaskCompletedEventId: 4,
-		}),
+		}.Build()),
 	}
 
-	history := &historypb.History{Events: testEvents}
+	history := historypb.History_builder{Events: testEvents}.Build()
 	logger := getLogger()
 	replayer, err := NewWorkflowReplayer(WorkflowReplayerOptions{})
 	require.NoError(s.T(), err)
@@ -379,7 +379,7 @@ func testReplayWorkflowGetVersion(ctx Context) error {
 
 func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_GetVersion() {
 	testEvents := createHistoryForGetVersionTests("testReplayWorkflowGetVersion")
-	history := &historypb.History{Events: testEvents}
+	history := historypb.History_builder{Events: testEvents}.Build()
 	logger := getLogger()
 	replayer, err := NewWorkflowReplayer(WorkflowReplayerOptions{})
 	require.NoError(s.T(), err)
@@ -436,57 +436,57 @@ func testReplayWorkflowLocalAndRemoteActivity(ctx Context) error {
 func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_LocalAndRemoteActivity() {
 	taskQueue := "taskQueue1"
 	testEvents := []*historypb.HistoryEvent{
-		createTestEventWorkflowExecutionStarted(1, &historypb.WorkflowExecutionStartedEventAttributes{
-			WorkflowType: &commonpb.WorkflowType{Name: "testReplayWorkflowLocalAndRemoteActivity"},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
+		createTestEventWorkflowExecutionStarted(1, historypb.WorkflowExecutionStartedEventAttributes_builder{
+			WorkflowType: commonpb.WorkflowType_builder{Name: "testReplayWorkflowLocalAndRemoteActivity"}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
 			Input:        testEncodeFunctionArgs(converter.GetDefaultDataConverter()),
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(2, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(3),
 		createTestEventWorkflowTaskCompleted(4, &historypb.WorkflowTaskCompletedEventAttributes{}),
 		createTestEventVersionMarker(5, 4, "change_id_A", Version(3)),
 		createTestUpsertWorkflowSearchAttributesForChangeVersion(6, 4, "change_id_A", Version(3)),
 
-		createTestEventMarkerRecorded(7, &historypb.MarkerRecordedEventAttributes{
+		createTestEventMarkerRecorded(7, historypb.MarkerRecordedEventAttributes_builder{
 			MarkerName:                   localActivityMarkerName,
 			Details:                      s.createLocalActivityMarkerDataForTest("1"),
 			WorkflowTaskCompletedEventId: 4,
-		}),
-		createTestEventMarkerRecorded(8, &historypb.MarkerRecordedEventAttributes{
+		}.Build()),
+		createTestEventMarkerRecorded(8, historypb.MarkerRecordedEventAttributes_builder{
 			MarkerName:                   localActivityMarkerName,
 			Details:                      s.createLocalActivityMarkerDataForTest("2"),
 			WorkflowTaskCompletedEventId: 4,
-		}),
-		createTestEventActivityTaskScheduled(9, &historypb.ActivityTaskScheduledEventAttributes{
+		}.Build()),
+		createTestEventActivityTaskScheduled(9, historypb.ActivityTaskScheduledEventAttributes_builder{
 			ActivityId:   "9",
-			ActivityType: &commonpb.ActivityType{Name: "testActivity"},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
-		}),
-		createTestEventMarkerRecorded(10, &historypb.MarkerRecordedEventAttributes{
+			ActivityType: commonpb.ActivityType_builder{Name: "testActivity"}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
+		}.Build()),
+		createTestEventMarkerRecorded(10, historypb.MarkerRecordedEventAttributes_builder{
 			MarkerName:                   localActivityMarkerName,
 			Details:                      s.createLocalActivityMarkerDataForTest("3"),
 			WorkflowTaskCompletedEventId: 4,
-		}),
-		createTestEventActivityTaskStarted(11, &historypb.ActivityTaskStartedEventAttributes{
+		}.Build()),
+		createTestEventActivityTaskStarted(11, historypb.ActivityTaskStartedEventAttributes_builder{
 			ScheduledEventId: 9,
-		}),
-		createTestEventActivityTaskCompleted(12, &historypb.ActivityTaskCompletedEventAttributes{
+		}.Build()),
+		createTestEventActivityTaskCompleted(12, historypb.ActivityTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 9,
 			StartedEventId:   11,
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(13, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(14),
-		createTestEventWorkflowTaskCompleted(15, &historypb.WorkflowTaskCompletedEventAttributes{
+		createTestEventWorkflowTaskCompleted(15, historypb.WorkflowTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 13,
 			StartedEventId:   14,
-		}),
+		}.Build()),
 
-		createTestEventWorkflowExecutionCompleted(16, &historypb.WorkflowExecutionCompletedEventAttributes{
+		createTestEventWorkflowExecutionCompleted(16, historypb.WorkflowExecutionCompletedEventAttributes_builder{
 			WorkflowTaskCompletedEventId: 4,
-		}),
+		}.Build()),
 	}
 
-	history := &historypb.History{Events: testEvents}
+	history := historypb.History_builder{Events: testEvents}.Build()
 	logger := getLogger()
 	replayer, err := NewWorkflowReplayer(WorkflowReplayerOptions{})
 	require.NoError(s.T(), err)
@@ -526,7 +526,7 @@ func testReplayWorkflowGetVersionReplacedChangeID(ctx Context) error {
 
 func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_GetVersion_ReplacedChangeID() {
 	testEvents := createHistoryForGetVersionTests("testReplayWorkflowGetVersionReplacedChangeID")
-	history := &historypb.History{Events: testEvents}
+	history := historypb.History_builder{Events: testEvents}.Build()
 	logger := getLogger()
 	replayer, err := NewWorkflowReplayer(WorkflowReplayerOptions{})
 	require.NoError(s.T(), err)
@@ -561,7 +561,7 @@ func testReplayWorkflowGetVersionRemoved(ctx Context) error {
 
 func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_GetVersionRemoved() {
 	testEvents := createHistoryForGetVersionTests("testReplayWorkflowGetVersionRemoved")
-	history := &historypb.History{Events: testEvents}
+	history := historypb.History_builder{Events: testEvents}.Build()
 	logger := getLogger()
 	replayer, err := NewWorkflowReplayer(WorkflowReplayerOptions{})
 	require.NoError(s.T(), err)
@@ -606,7 +606,7 @@ func testReplayWorkflowGetVersionAddNewBefore(ctx Context) error {
 
 func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_GetVersion_AddNewBefore() {
 	testEvents := createHistoryForGetVersionTests("testReplayWorkflowGetVersionAddNewBefore")
-	history := &historypb.History{Events: testEvents}
+	history := historypb.History_builder{Events: testEvents}.Build()
 	logger := getLogger()
 	replayer, err := NewWorkflowReplayer(WorkflowReplayerOptions{})
 	require.NoError(s.T(), err)
@@ -618,74 +618,74 @@ func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_GetVersion_AddNewBef
 func createHistoryForGetVersionTests(workflowType string) []*historypb.HistoryEvent {
 	taskQueue := "taskQueue1"
 	return []*historypb.HistoryEvent{
-		createTestEventWorkflowExecutionStarted(1, &historypb.WorkflowExecutionStartedEventAttributes{
-			WorkflowType: &commonpb.WorkflowType{Name: workflowType},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
+		createTestEventWorkflowExecutionStarted(1, historypb.WorkflowExecutionStartedEventAttributes_builder{
+			WorkflowType: commonpb.WorkflowType_builder{Name: workflowType}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
 			Input:        testEncodeFunctionArgs(converter.GetDefaultDataConverter()),
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(2, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(3),
 		createTestEventWorkflowTaskCompleted(4, &historypb.WorkflowTaskCompletedEventAttributes{}),
 		createTestEventVersionMarker(5, 4, "change_id_A", Version(3)),
 		createTestUpsertWorkflowSearchAttributesForChangeVersion(6, 4, "change_id_A", Version(3)),
-		createTestEventActivityTaskScheduled(7, &historypb.ActivityTaskScheduledEventAttributes{
+		createTestEventActivityTaskScheduled(7, historypb.ActivityTaskScheduledEventAttributes_builder{
 			ActivityId:   "7",
-			ActivityType: &commonpb.ActivityType{Name: "testActivity"},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
-		}),
-		createTestEventActivityTaskStarted(8, &historypb.ActivityTaskStartedEventAttributes{
+			ActivityType: commonpb.ActivityType_builder{Name: "testActivity"}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
+		}.Build()),
+		createTestEventActivityTaskStarted(8, historypb.ActivityTaskStartedEventAttributes_builder{
 			ScheduledEventId: 7,
-		}),
-		createTestEventActivityTaskCompleted(9, &historypb.ActivityTaskCompletedEventAttributes{
+		}.Build()),
+		createTestEventActivityTaskCompleted(9, historypb.ActivityTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 7,
 			StartedEventId:   8,
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(10, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(11),
-		createTestEventWorkflowTaskCompleted(12, &historypb.WorkflowTaskCompletedEventAttributes{
+		createTestEventWorkflowTaskCompleted(12, historypb.WorkflowTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 10,
 			StartedEventId:   11,
-		}),
-		createTestEventActivityTaskScheduled(13, &historypb.ActivityTaskScheduledEventAttributes{
+		}.Build()),
+		createTestEventActivityTaskScheduled(13, historypb.ActivityTaskScheduledEventAttributes_builder{
 			ActivityId:   "13",
-			ActivityType: &commonpb.ActivityType{Name: "testActivity"},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
-		}),
-		createTestEventActivityTaskStarted(14, &historypb.ActivityTaskStartedEventAttributes{
+			ActivityType: commonpb.ActivityType_builder{Name: "testActivity"}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
+		}.Build()),
+		createTestEventActivityTaskStarted(14, historypb.ActivityTaskStartedEventAttributes_builder{
 			ScheduledEventId: 13,
-		}),
-		createTestEventActivityTaskCompleted(15, &historypb.ActivityTaskCompletedEventAttributes{
+		}.Build()),
+		createTestEventActivityTaskCompleted(15, historypb.ActivityTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 13,
 			StartedEventId:   14,
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(16, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(17),
-		createTestEventWorkflowTaskCompleted(18, &historypb.WorkflowTaskCompletedEventAttributes{
+		createTestEventWorkflowTaskCompleted(18, historypb.WorkflowTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 16,
 			StartedEventId:   17,
-		}),
-		createTestEventActivityTaskScheduled(19, &historypb.ActivityTaskScheduledEventAttributes{
+		}.Build()),
+		createTestEventActivityTaskScheduled(19, historypb.ActivityTaskScheduledEventAttributes_builder{
 			ActivityId:   "19",
-			ActivityType: &commonpb.ActivityType{Name: "testActivity"},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
-		}),
-		createTestEventActivityTaskStarted(20, &historypb.ActivityTaskStartedEventAttributes{
+			ActivityType: commonpb.ActivityType_builder{Name: "testActivity"}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
+		}.Build()),
+		createTestEventActivityTaskStarted(20, historypb.ActivityTaskStartedEventAttributes_builder{
 			ScheduledEventId: 19,
-		}),
-		createTestEventActivityTaskCompleted(21, &historypb.ActivityTaskCompletedEventAttributes{
+		}.Build()),
+		createTestEventActivityTaskCompleted(21, historypb.ActivityTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 19,
 			StartedEventId:   20,
-		}),
+		}.Build()),
 
 		createTestEventWorkflowTaskScheduled(22, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(23),
-		createTestEventWorkflowTaskCompleted(24, &historypb.WorkflowTaskCompletedEventAttributes{
+		createTestEventWorkflowTaskCompleted(24, historypb.WorkflowTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 22,
 			StartedEventId:   23,
-		}),
-		createTestEventWorkflowExecutionCompleted(25, &historypb.WorkflowExecutionCompletedEventAttributes{
+		}.Build()),
+		createTestEventWorkflowExecutionCompleted(25, historypb.WorkflowExecutionCompletedEventAttributes_builder{
 			WorkflowTaskCompletedEventId: 24,
-		}),
+		}.Build()),
 	}
 }
 
@@ -717,44 +717,44 @@ func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_GetVersionWithSideEf
 	sideEffectPayloads, seErr := s.dataConverter.ToPayloads("TEST-UNIQUE-ID")
 	s.NoError(seErr)
 	testEvents := []*historypb.HistoryEvent{
-		createTestEventWorkflowExecutionStarted(1, &historypb.WorkflowExecutionStartedEventAttributes{
-			WorkflowType: &commonpb.WorkflowType{Name: "testReplayWorkflowGetVersionWithSideEffect"},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
+		createTestEventWorkflowExecutionStarted(1, historypb.WorkflowExecutionStartedEventAttributes_builder{
+			WorkflowType: commonpb.WorkflowType_builder{Name: "testReplayWorkflowGetVersionWithSideEffect"}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
 			Input:        testEncodeFunctionArgs(converter.GetDefaultDataConverter()),
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(2, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(3),
 		createTestEventWorkflowTaskCompleted(4, &historypb.WorkflowTaskCompletedEventAttributes{}),
 		createTestEventVersionMarker(5, 4, "UniqueID", Version(1)),
 		createTestUpsertWorkflowSearchAttributesForChangeVersion(6, 4, "UniqueID", Version(1)),
-		createTestEventMarkerRecorded(7, &historypb.MarkerRecordedEventAttributes{
+		createTestEventMarkerRecorded(7, historypb.MarkerRecordedEventAttributes_builder{
 			MarkerName:                   sideEffectMarkerName,
 			Details:                      s.createSideEffectMarkerDataForTest(sideEffectPayloads, 1),
 			WorkflowTaskCompletedEventId: 4,
-		}),
-		createTestEventActivityTaskScheduled(8, &historypb.ActivityTaskScheduledEventAttributes{
+		}.Build()),
+		createTestEventActivityTaskScheduled(8, historypb.ActivityTaskScheduledEventAttributes_builder{
 			ActivityId:   "8",
-			ActivityType: &commonpb.ActivityType{Name: "testActivityReturnString"},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
-		}),
-		createTestEventActivityTaskStarted(9, &historypb.ActivityTaskStartedEventAttributes{
+			ActivityType: commonpb.ActivityType_builder{Name: "testActivityReturnString"}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
+		}.Build()),
+		createTestEventActivityTaskStarted(9, historypb.ActivityTaskStartedEventAttributes_builder{
 			ScheduledEventId: 8,
-		}),
-		createTestEventActivityTaskCompleted(10, &historypb.ActivityTaskCompletedEventAttributes{
+		}.Build()),
+		createTestEventActivityTaskCompleted(10, historypb.ActivityTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 8,
 			StartedEventId:   9,
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(11, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(12),
-		createTestEventWorkflowTaskCompleted(13, &historypb.WorkflowTaskCompletedEventAttributes{
+		createTestEventWorkflowTaskCompleted(13, historypb.WorkflowTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 11,
 			StartedEventId:   12,
-		}),
-		createTestEventWorkflowExecutionCompleted(14, &historypb.WorkflowExecutionCompletedEventAttributes{
+		}.Build()),
+		createTestEventWorkflowExecutionCompleted(14, historypb.WorkflowExecutionCompletedEventAttributes_builder{
 			WorkflowTaskCompletedEventId: 13,
-		}),
+		}.Build()),
 	}
-	history := &historypb.History{Events: testEvents}
+	history := historypb.History_builder{Events: testEvents}.Build()
 	logger := getLogger()
 	replayer, err := NewWorkflowReplayer(WorkflowReplayerOptions{})
 	require.NoError(s.T(), err)
@@ -785,7 +785,7 @@ func testReplayWorkflowCancelActivity(ctx Context) error {
 
 func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_CancelActivity() {
 	testEvents := createHistoryForCancelActivityTests("testReplayWorkflowCancelActivity")
-	history := &historypb.History{Events: testEvents}
+	history := historypb.History_builder{Events: testEvents}.Build()
 	logger := getLogger()
 	replayer, err := NewWorkflowReplayer(WorkflowReplayerOptions{})
 	require.NoError(s.T(), err)
@@ -797,52 +797,52 @@ func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_CancelActivity() {
 func createHistoryForCancelActivityTests(workflowType string) []*historypb.HistoryEvent {
 	taskQueue := "taskQueue1"
 	return []*historypb.HistoryEvent{
-		createTestEventWorkflowExecutionStarted(1, &historypb.WorkflowExecutionStartedEventAttributes{
-			WorkflowType: &commonpb.WorkflowType{Name: workflowType},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
+		createTestEventWorkflowExecutionStarted(1, historypb.WorkflowExecutionStartedEventAttributes_builder{
+			WorkflowType: commonpb.WorkflowType_builder{Name: workflowType}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
 			Input:        testEncodeFunctionArgs(converter.GetDefaultDataConverter()),
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(2, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(3),
 		createTestEventWorkflowTaskCompleted(4, &historypb.WorkflowTaskCompletedEventAttributes{}),
-		createTestEventActivityTaskScheduled(5, &historypb.ActivityTaskScheduledEventAttributes{
+		createTestEventActivityTaskScheduled(5, historypb.ActivityTaskScheduledEventAttributes_builder{
 			ActivityId:   "5",
-			ActivityType: &commonpb.ActivityType{Name: "testActivity1"},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
-		}),
+			ActivityType: commonpb.ActivityType_builder{Name: "testActivity1"}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
+		}.Build()),
 		createTestEventTimerStarted(6, 6),
-		createTestEventActivityTaskStarted(7, &historypb.ActivityTaskStartedEventAttributes{
+		createTestEventActivityTaskStarted(7, historypb.ActivityTaskStartedEventAttributes_builder{
 			ScheduledEventId: 5,
-		}),
+		}.Build()),
 		createTestEventTimerFired(8, 6),
 		createTestEventWorkflowTaskScheduled(9, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(10),
 		createTestEventWorkflowTaskCompleted(11, &historypb.WorkflowTaskCompletedEventAttributes{}),
-		createTestEventActivityTaskCancelRequested(12, &historypb.ActivityTaskCancelRequestedEventAttributes{
+		createTestEventActivityTaskCancelRequested(12, historypb.ActivityTaskCancelRequestedEventAttributes_builder{
 			ScheduledEventId:             5,
 			WorkflowTaskCompletedEventId: 11,
-		}),
-		createTestEventActivityTaskScheduled(13, &historypb.ActivityTaskScheduledEventAttributes{
+		}.Build()),
+		createTestEventActivityTaskScheduled(13, historypb.ActivityTaskScheduledEventAttributes_builder{
 			ActivityId:   "13",
-			ActivityType: &commonpb.ActivityType{Name: "testActivity2"},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
-		}),
-		createTestEventActivityTaskStarted(14, &historypb.ActivityTaskStartedEventAttributes{
+			ActivityType: commonpb.ActivityType_builder{Name: "testActivity2"}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
+		}.Build()),
+		createTestEventActivityTaskStarted(14, historypb.ActivityTaskStartedEventAttributes_builder{
 			ScheduledEventId: 13,
-		}),
-		createTestEventActivityTaskCompleted(15, &historypb.ActivityTaskCompletedEventAttributes{
+		}.Build()),
+		createTestEventActivityTaskCompleted(15, historypb.ActivityTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 13,
 			StartedEventId:   14,
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(16, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(17),
-		createTestEventWorkflowTaskCompleted(18, &historypb.WorkflowTaskCompletedEventAttributes{
+		createTestEventWorkflowTaskCompleted(18, historypb.WorkflowTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 16,
 			StartedEventId:   17,
-		}),
-		createTestEventWorkflowExecutionCompleted(19, &historypb.WorkflowExecutionCompletedEventAttributes{
+		}.Build()),
+		createTestEventWorkflowExecutionCompleted(19, historypb.WorkflowExecutionCompletedEventAttributes_builder{
 			WorkflowTaskCompletedEventId: 18,
-		}),
+		}.Build()),
 	}
 }
 
@@ -863,7 +863,7 @@ func testReplayWorkflowCancelTimer(ctx Context) error {
 
 func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_CancelTimer() {
 	testEvents := createHistoryForCancelTimerTests("testReplayWorkflowCancelTimer")
-	history := &historypb.History{Events: testEvents}
+	history := historypb.History_builder{Events: testEvents}.Build()
 	logger := getLogger()
 	replayer, err := NewWorkflowReplayer(WorkflowReplayerOptions{})
 	require.NoError(s.T(), err)
@@ -875,11 +875,11 @@ func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_CancelTimer() {
 func createHistoryForCancelTimerTests(workflowType string) []*historypb.HistoryEvent {
 	taskQueue := "taskQueue1"
 	return []*historypb.HistoryEvent{
-		createTestEventWorkflowExecutionStarted(1, &historypb.WorkflowExecutionStartedEventAttributes{
-			WorkflowType: &commonpb.WorkflowType{Name: workflowType},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
+		createTestEventWorkflowExecutionStarted(1, historypb.WorkflowExecutionStartedEventAttributes_builder{
+			WorkflowType: commonpb.WorkflowType_builder{Name: workflowType}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
 			Input:        testEncodeFunctionArgs(converter.GetDefaultDataConverter()),
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(2, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(3),
 		createTestEventWorkflowTaskCompleted(4, &historypb.WorkflowTaskCompletedEventAttributes{}),
@@ -890,27 +890,27 @@ func createHistoryForCancelTimerTests(workflowType string) []*historypb.HistoryE
 		createTestEventWorkflowTaskStarted(9),
 		createTestEventWorkflowTaskCompleted(10, &historypb.WorkflowTaskCompletedEventAttributes{}),
 		createTestEventTimerCanceled(11, 5),
-		createTestEventActivityTaskScheduled(12, &historypb.ActivityTaskScheduledEventAttributes{
+		createTestEventActivityTaskScheduled(12, historypb.ActivityTaskScheduledEventAttributes_builder{
 			ActivityId:   "12",
-			ActivityType: &commonpb.ActivityType{Name: "testActivity2"},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
-		}),
-		createTestEventActivityTaskStarted(13, &historypb.ActivityTaskStartedEventAttributes{
+			ActivityType: commonpb.ActivityType_builder{Name: "testActivity2"}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
+		}.Build()),
+		createTestEventActivityTaskStarted(13, historypb.ActivityTaskStartedEventAttributes_builder{
 			ScheduledEventId: 12,
-		}),
-		createTestEventActivityTaskCompleted(14, &historypb.ActivityTaskCompletedEventAttributes{
+		}.Build()),
+		createTestEventActivityTaskCompleted(14, historypb.ActivityTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 12,
 			StartedEventId:   13,
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(15, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(16),
-		createTestEventWorkflowTaskCompleted(17, &historypb.WorkflowTaskCompletedEventAttributes{
+		createTestEventWorkflowTaskCompleted(17, historypb.WorkflowTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 15,
 			StartedEventId:   16,
-		}),
-		createTestEventWorkflowExecutionCompleted(18, &historypb.WorkflowExecutionCompletedEventAttributes{
+		}.Build()),
+		createTestEventWorkflowExecutionCompleted(18, historypb.WorkflowExecutionCompletedEventAttributes_builder{
 			WorkflowTaskCompletedEventId: 17,
-		}),
+		}.Build()),
 	}
 }
 
@@ -928,7 +928,7 @@ func cancelTimerAfterActivityWorkflow(ctx Context) error {
 
 func (s *internalWorkerTestSuite) TestReplayWorkflowCancelTimerAfterActivity() {
 	testEvents := createHistoryForCancelTimerAfterActivity("cancelTimerAfterActivityWorkflow")
-	history := &historypb.History{Events: testEvents}
+	history := historypb.History_builder{Events: testEvents}.Build()
 	logger := getLogger()
 	replayer, err := NewWorkflowReplayer(WorkflowReplayerOptions{})
 	require.NoError(s.T(), err)
@@ -940,37 +940,37 @@ func (s *internalWorkerTestSuite) TestReplayWorkflowCancelTimerAfterActivity() {
 func createHistoryForCancelTimerAfterActivity(workflowType string) []*historypb.HistoryEvent {
 	taskQueue := "taskQueue1"
 	return []*historypb.HistoryEvent{
-		createTestEventWorkflowExecutionStarted(1, &historypb.WorkflowExecutionStartedEventAttributes{
-			WorkflowType: &commonpb.WorkflowType{Name: workflowType},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
+		createTestEventWorkflowExecutionStarted(1, historypb.WorkflowExecutionStartedEventAttributes_builder{
+			WorkflowType: commonpb.WorkflowType_builder{Name: workflowType}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
 			Input:        testEncodeFunctionArgs(converter.GetDefaultDataConverter()),
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(2, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(3),
 		createTestEventWorkflowTaskCompleted(4, &historypb.WorkflowTaskCompletedEventAttributes{}),
 		createTestEventTimerStarted(5, 5),
-		createTestEventActivityTaskScheduled(6, &historypb.ActivityTaskScheduledEventAttributes{
+		createTestEventActivityTaskScheduled(6, historypb.ActivityTaskScheduledEventAttributes_builder{
 			ActivityId:   "6",
-			ActivityType: &commonpb.ActivityType{Name: "testActivity"},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
-		}),
+			ActivityType: commonpb.ActivityType_builder{Name: "testActivity"}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
+		}.Build()),
 		createTestEventTimerCanceled(7, 5),
-		createTestEventActivityTaskStarted(8, &historypb.ActivityTaskStartedEventAttributes{
+		createTestEventActivityTaskStarted(8, historypb.ActivityTaskStartedEventAttributes_builder{
 			ScheduledEventId: 6,
-		}),
-		createTestEventActivityTaskCompleted(9, &historypb.ActivityTaskCompletedEventAttributes{
+		}.Build()),
+		createTestEventActivityTaskCompleted(9, historypb.ActivityTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 6,
 			StartedEventId:   8,
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(10, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(11),
-		createTestEventWorkflowTaskCompleted(12, &historypb.WorkflowTaskCompletedEventAttributes{
+		createTestEventWorkflowTaskCompleted(12, historypb.WorkflowTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 10,
 			StartedEventId:   11,
-		}),
-		createTestEventWorkflowExecutionCompleted(13, &historypb.WorkflowExecutionCompletedEventAttributes{
+		}.Build()),
+		createTestEventWorkflowExecutionCompleted(13, historypb.WorkflowExecutionCompletedEventAttributes_builder{
 			WorkflowTaskCompletedEventId: 12,
-		}),
+		}.Build()),
 	}
 }
 
@@ -995,7 +995,7 @@ func testReplayFailedToStartChildWorkflow(ctx Context) error {
 
 func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_FailedToStartChildWorkflow() {
 	testEvents := createHistoryForFailedToStartChildWorkflow("testReplayFailedToStartChildWorkflow")
-	history := &historypb.History{Events: testEvents}
+	history := historypb.History_builder{Events: testEvents}.Build()
 	logger := getLogger()
 	replayer, err := NewWorkflowReplayer(WorkflowReplayerOptions{})
 	require.NoError(s.T(), err)
@@ -1007,32 +1007,32 @@ func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_FailedToStartChildWo
 func createHistoryForFailedToStartChildWorkflow(workflowType string) []*historypb.HistoryEvent {
 	taskQueue := "taskQueue1"
 	return []*historypb.HistoryEvent{
-		createTestEventWorkflowExecutionStarted(1, &historypb.WorkflowExecutionStartedEventAttributes{
-			WorkflowType: &commonpb.WorkflowType{Name: workflowType},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
+		createTestEventWorkflowExecutionStarted(1, historypb.WorkflowExecutionStartedEventAttributes_builder{
+			WorkflowType: commonpb.WorkflowType_builder{Name: workflowType}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
 			Input:        testEncodeFunctionArgs(converter.GetDefaultDataConverter()),
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(2, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(3),
 		createTestEventWorkflowTaskCompleted(4, &historypb.WorkflowTaskCompletedEventAttributes{}),
-		createTestEventStartChildWorkflowExecutionInitiated(5, &historypb.StartChildWorkflowExecutionInitiatedEventAttributes{
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
+		createTestEventStartChildWorkflowExecutionInitiated(5, historypb.StartChildWorkflowExecutionInitiatedEventAttributes_builder{
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
 			WorkflowId:   "workflowId",
-			WorkflowType: &commonpb.WorkflowType{Name: "testWorkflow"},
-		}),
-		createTestEventStartChildWorkflowExecutionFailed(6, &historypb.StartChildWorkflowExecutionFailedEventAttributes{
+			WorkflowType: commonpb.WorkflowType_builder{Name: "testWorkflow"}.Build(),
+		}.Build()),
+		createTestEventStartChildWorkflowExecutionFailed(6, historypb.StartChildWorkflowExecutionFailedEventAttributes_builder{
 			WorkflowId:                   "workflowId",
 			InitiatedEventId:             5,
 			WorkflowTaskCompletedEventId: 4,
-			WorkflowType:                 &commonpb.WorkflowType{Name: "testWorkflow"},
+			WorkflowType:                 commonpb.WorkflowType_builder{Name: "testWorkflow"}.Build(),
 			Cause:                        enumspb.START_CHILD_WORKFLOW_EXECUTION_FAILED_CAUSE_WORKFLOW_ALREADY_EXISTS,
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(7, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(8),
 		createTestEventWorkflowTaskCompleted(9, &historypb.WorkflowTaskCompletedEventAttributes{}),
-		createTestEventWorkflowExecutionCompleted(10, &historypb.WorkflowExecutionCompletedEventAttributes{
+		createTestEventWorkflowExecutionCompleted(10, historypb.WorkflowExecutionCompletedEventAttributes_builder{
 			WorkflowTaskCompletedEventId: 9,
-		}),
+		}.Build()),
 	}
 }
 
@@ -1059,7 +1059,7 @@ func testReplayWorkflowCancelChildWorkflow(ctx Context) error {
 
 func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_CancelChildWorkflow() {
 	testEvents := createHistoryForCancelChildWorkflowTests("testReplayWorkflowCancelChildWorkflow")
-	history := &historypb.History{Events: testEvents}
+	history := historypb.History_builder{Events: testEvents}.Build()
 	logger := getLogger()
 	replayer, err := NewWorkflowReplayer(WorkflowReplayerOptions{})
 	require.NoError(s.T(), err)
@@ -1071,25 +1071,25 @@ func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_CancelChildWorkflow(
 func createHistoryForCancelChildWorkflowTests(workflowType string) []*historypb.HistoryEvent {
 	taskQueue := "taskQueue1"
 	return []*historypb.HistoryEvent{
-		createTestEventWorkflowExecutionStarted(1, &historypb.WorkflowExecutionStartedEventAttributes{
-			WorkflowType: &commonpb.WorkflowType{Name: workflowType},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
+		createTestEventWorkflowExecutionStarted(1, historypb.WorkflowExecutionStartedEventAttributes_builder{
+			WorkflowType: commonpb.WorkflowType_builder{Name: workflowType}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
 			Input:        testEncodeFunctionArgs(converter.GetDefaultDataConverter()),
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(2, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(3),
 		createTestEventWorkflowTaskCompleted(4, &historypb.WorkflowTaskCompletedEventAttributes{}),
-		createTestEventStartChildWorkflowExecutionInitiated(5, &historypb.StartChildWorkflowExecutionInitiatedEventAttributes{
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
-			WorkflowType: &commonpb.WorkflowType{Name: "testWorkflow"},
+		createTestEventStartChildWorkflowExecutionInitiated(5, historypb.StartChildWorkflowExecutionInitiatedEventAttributes_builder{
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
+			WorkflowType: commonpb.WorkflowType_builder{Name: "testWorkflow"}.Build(),
 			WorkflowId:   "workflowId",
-		}),
+		}.Build()),
 		createTestEventTimerStarted(6, 6),
-		createTestEventChildWorkflowExecutionStarted(7, &historypb.ChildWorkflowExecutionStartedEventAttributes{
+		createTestEventChildWorkflowExecutionStarted(7, historypb.ChildWorkflowExecutionStartedEventAttributes_builder{
 			InitiatedEventId:  5,
-			WorkflowType:      &commonpb.WorkflowType{Name: "testWorkflow"},
-			WorkflowExecution: &commonpb.WorkflowExecution{WorkflowId: "workflowId"},
-		}),
+			WorkflowType:      commonpb.WorkflowType_builder{Name: "testWorkflow"}.Build(),
+			WorkflowExecution: commonpb.WorkflowExecution_builder{WorkflowId: "workflowId"}.Build(),
+		}.Build()),
 
 		createTestEventWorkflowTaskScheduled(8, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(9),
@@ -1099,48 +1099,48 @@ func createHistoryForCancelChildWorkflowTests(workflowType string) []*historypb.
 		createTestEventWorkflowTaskStarted(13),
 		createTestEventWorkflowTaskCompleted(14, &historypb.WorkflowTaskCompletedEventAttributes{}),
 
-		createTestEventRequestCancelExternalWorkflowExecutionInitiated(15, &historypb.RequestCancelExternalWorkflowExecutionInitiatedEventAttributes{
+		createTestEventRequestCancelExternalWorkflowExecutionInitiated(15, historypb.RequestCancelExternalWorkflowExecutionInitiatedEventAttributes_builder{
 			WorkflowTaskCompletedEventId: 14,
-			WorkflowExecution:            &commonpb.WorkflowExecution{WorkflowId: "workflowId"},
-		}),
+			WorkflowExecution:            commonpb.WorkflowExecution_builder{WorkflowId: "workflowId"}.Build(),
+		}.Build()),
 
-		createTestEventActivityTaskScheduled(16, &historypb.ActivityTaskScheduledEventAttributes{
+		createTestEventActivityTaskScheduled(16, historypb.ActivityTaskScheduledEventAttributes_builder{
 			ActivityId:   "16",
-			ActivityType: &commonpb.ActivityType{Name: "testActivity2"},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
-		}),
-		createTestEventExternalWorkflowExecutionCancelRequested(17, &historypb.ExternalWorkflowExecutionCancelRequestedEventAttributes{
-			WorkflowExecution: &commonpb.WorkflowExecution{WorkflowId: "workflowId"},
+			ActivityType: commonpb.ActivityType_builder{Name: "testActivity2"}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
+		}.Build()),
+		createTestEventExternalWorkflowExecutionCancelRequested(17, historypb.ExternalWorkflowExecutionCancelRequestedEventAttributes_builder{
+			WorkflowExecution: commonpb.WorkflowExecution_builder{WorkflowId: "workflowId"}.Build(),
 			InitiatedEventId:  15,
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(18, &historypb.WorkflowTaskScheduledEventAttributes{}),
 
-		createTestEventActivityTaskStarted(19, &historypb.ActivityTaskStartedEventAttributes{
+		createTestEventActivityTaskStarted(19, historypb.ActivityTaskStartedEventAttributes_builder{
 			ScheduledEventId: 16,
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskStarted(20),
 		createTestEventWorkflowTaskCompleted(21, &historypb.WorkflowTaskCompletedEventAttributes{}),
 
-		createTestEventActivityTaskCompleted(22, &historypb.ActivityTaskCompletedEventAttributes{
+		createTestEventActivityTaskCompleted(22, historypb.ActivityTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 16,
 			StartedEventId:   19,
-		}),
+		}.Build()),
 
-		createTestEventChildWorkflowExecutionCanceled(23, &historypb.ChildWorkflowExecutionCanceledEventAttributes{
+		createTestEventChildWorkflowExecutionCanceled(23, historypb.ChildWorkflowExecutionCanceledEventAttributes_builder{
 			InitiatedEventId:  5,
 			StartedEventId:    7,
-			WorkflowExecution: &commonpb.WorkflowExecution{WorkflowId: "workflowId"},
-		}),
+			WorkflowExecution: commonpb.WorkflowExecution_builder{WorkflowId: "workflowId"}.Build(),
+		}.Build()),
 
 		createTestEventWorkflowTaskScheduled(24, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(25),
-		createTestEventWorkflowTaskCompleted(26, &historypb.WorkflowTaskCompletedEventAttributes{
+		createTestEventWorkflowTaskCompleted(26, historypb.WorkflowTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 24,
 			StartedEventId:   25,
-		}),
-		createTestEventWorkflowExecutionCompleted(27, &historypb.WorkflowExecutionCompletedEventAttributes{
+		}.Build()),
+		createTestEventWorkflowExecutionCompleted(27, historypb.WorkflowExecutionCompletedEventAttributes_builder{
 			WorkflowTaskCompletedEventId: 26,
-		}),
+		}.Build()),
 	}
 }
 
@@ -1164,26 +1164,26 @@ func testReplayWorkflowCancelChildWorkflowUnusualOrdering(ctx Context) error {
 func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_ChildWorkflowCancellation_WhenWorkflowCanceled() {
 	taskQueue := "taskQueue1"
 	testEvents := []*historypb.HistoryEvent{
-		createTestEventWorkflowExecutionStarted(1, &historypb.WorkflowExecutionStartedEventAttributes{
-			WorkflowType: &commonpb.WorkflowType{Name: "testReplayWorkflowCancelChildWorkflowUnusualOrdering"},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
+		createTestEventWorkflowExecutionStarted(1, historypb.WorkflowExecutionStartedEventAttributes_builder{
+			WorkflowType: commonpb.WorkflowType_builder{Name: "testReplayWorkflowCancelChildWorkflowUnusualOrdering"}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
 			Input:        testEncodeFunctionArgs(converter.GetDefaultDataConverter()),
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(2, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(3),
 		createTestEventWorkflowTaskCompleted(4, &historypb.WorkflowTaskCompletedEventAttributes{}),
-		createTestEventStartChildWorkflowExecutionInitiated(5, &historypb.StartChildWorkflowExecutionInitiatedEventAttributes{
-			TaskQueue:         &taskqueuepb.TaskQueue{Name: taskQueue},
+		createTestEventStartChildWorkflowExecutionInitiated(5, historypb.StartChildWorkflowExecutionInitiatedEventAttributes_builder{
+			TaskQueue:         taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
 			WorkflowId:        "workflowId",
-			WorkflowType:      &commonpb.WorkflowType{Name: "testWorkflow"},
+			WorkflowType:      commonpb.WorkflowType_builder{Name: "testWorkflow"}.Build(),
 			ParentClosePolicy: enumspb.PARENT_CLOSE_POLICY_TERMINATE,
-		}),
+		}.Build()),
 		createTestEventTimerStarted(6, 6),
-		createTestEventChildWorkflowExecutionStarted(7, &historypb.ChildWorkflowExecutionStartedEventAttributes{
+		createTestEventChildWorkflowExecutionStarted(7, historypb.ChildWorkflowExecutionStartedEventAttributes_builder{
 			InitiatedEventId:  5,
-			WorkflowType:      &commonpb.WorkflowType{Name: "testWorkflow"},
-			WorkflowExecution: &commonpb.WorkflowExecution{WorkflowId: "workflowId"},
-		}),
+			WorkflowType:      commonpb.WorkflowType_builder{Name: "testWorkflow"}.Build(),
+			WorkflowExecution: commonpb.WorkflowExecution_builder{WorkflowId: "workflowId"}.Build(),
+		}.Build()),
 
 		createTestEventWorkflowTaskScheduled(8, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(9),
@@ -1191,16 +1191,16 @@ func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_ChildWorkflowCancell
 		createTestEventWorkflowExecutionCancelRequested(11, &historypb.WorkflowExecutionCancelRequestedEventAttributes{}),
 		createTestEventTimerFired(12, 6),
 		createTestEventWorkflowTaskScheduled(13, &historypb.WorkflowTaskScheduledEventAttributes{}),
-		createTestEventChildWorkflowExecutionCanceled(14, &historypb.ChildWorkflowExecutionCanceledEventAttributes{
+		createTestEventChildWorkflowExecutionCanceled(14, historypb.ChildWorkflowExecutionCanceledEventAttributes_builder{
 			InitiatedEventId:  5,
 			StartedEventId:    7,
-			WorkflowExecution: &commonpb.WorkflowExecution{WorkflowId: "workflowId"},
-		}),
+			WorkflowExecution: commonpb.WorkflowExecution_builder{WorkflowId: "workflowId"}.Build(),
+		}.Build()),
 		createTestEventWorkflowTaskStarted(15),
 		createTestEventWorkflowTaskCompleted(16, &historypb.WorkflowTaskCompletedEventAttributes{}),
 	}
 
-	history := &historypb.History{Events: testEvents}
+	history := historypb.History_builder{Events: testEvents}.Build()
 	logger := getLogger()
 	replayer, err := NewWorkflowReplayer(WorkflowReplayerOptions{})
 	require.NoError(s.T(), err)
@@ -1215,25 +1215,25 @@ func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_ChildWorkflowCancell
 func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_ChildWorkflowCancellation_Unusual_Ordering() {
 	taskQueue := "taskQueue1"
 	testEvents := []*historypb.HistoryEvent{
-		createTestEventWorkflowExecutionStarted(1, &historypb.WorkflowExecutionStartedEventAttributes{
-			WorkflowType: &commonpb.WorkflowType{Name: "testReplayWorkflowCancelChildWorkflowUnusualOrdering"},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
+		createTestEventWorkflowExecutionStarted(1, historypb.WorkflowExecutionStartedEventAttributes_builder{
+			WorkflowType: commonpb.WorkflowType_builder{Name: "testReplayWorkflowCancelChildWorkflowUnusualOrdering"}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
 			Input:        testEncodeFunctionArgs(converter.GetDefaultDataConverter()),
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(2, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(3),
 		createTestEventWorkflowTaskCompleted(4, &historypb.WorkflowTaskCompletedEventAttributes{}),
-		createTestEventStartChildWorkflowExecutionInitiated(5, &historypb.StartChildWorkflowExecutionInitiatedEventAttributes{
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
+		createTestEventStartChildWorkflowExecutionInitiated(5, historypb.StartChildWorkflowExecutionInitiatedEventAttributes_builder{
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
 			WorkflowId:   "workflowId",
-			WorkflowType: &commonpb.WorkflowType{Name: "testWorkflow"},
-		}),
+			WorkflowType: commonpb.WorkflowType_builder{Name: "testWorkflow"}.Build(),
+		}.Build()),
 		createTestEventTimerStarted(6, 6),
-		createTestEventChildWorkflowExecutionStarted(7, &historypb.ChildWorkflowExecutionStartedEventAttributes{
+		createTestEventChildWorkflowExecutionStarted(7, historypb.ChildWorkflowExecutionStartedEventAttributes_builder{
 			InitiatedEventId:  5,
-			WorkflowType:      &commonpb.WorkflowType{Name: "testWorkflow"},
-			WorkflowExecution: &commonpb.WorkflowExecution{WorkflowId: "workflowId"},
-		}),
+			WorkflowType:      commonpb.WorkflowType_builder{Name: "testWorkflow"}.Build(),
+			WorkflowExecution: commonpb.WorkflowExecution_builder{WorkflowId: "workflowId"}.Build(),
+		}.Build()),
 
 		createTestEventWorkflowTaskScheduled(8, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(9),
@@ -1243,36 +1243,36 @@ func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_ChildWorkflowCancell
 		createTestEventWorkflowTaskStarted(13),
 		createTestEventWorkflowTaskCompleted(14, &historypb.WorkflowTaskCompletedEventAttributes{}),
 
-		createTestEventRequestCancelExternalWorkflowExecutionInitiated(15, &historypb.RequestCancelExternalWorkflowExecutionInitiatedEventAttributes{
+		createTestEventRequestCancelExternalWorkflowExecutionInitiated(15, historypb.RequestCancelExternalWorkflowExecutionInitiatedEventAttributes_builder{
 			WorkflowTaskCompletedEventId: 14,
-			WorkflowExecution:            &commonpb.WorkflowExecution{WorkflowId: "workflowId"},
-		}),
+			WorkflowExecution:            commonpb.WorkflowExecution_builder{WorkflowId: "workflowId"}.Build(),
+		}.Build()),
 
-		createTestEventChildWorkflowExecutionCanceled(16, &historypb.ChildWorkflowExecutionCanceledEventAttributes{
+		createTestEventChildWorkflowExecutionCanceled(16, historypb.ChildWorkflowExecutionCanceledEventAttributes_builder{
 			InitiatedEventId:  5,
 			StartedEventId:    7,
-			WorkflowExecution: &commonpb.WorkflowExecution{WorkflowId: "workflowId"},
-		}),
+			WorkflowExecution: commonpb.WorkflowExecution_builder{WorkflowId: "workflowId"}.Build(),
+		}.Build()),
 
-		createTestEventExternalWorkflowExecutionCancelRequested(17, &historypb.ExternalWorkflowExecutionCancelRequestedEventAttributes{
-			WorkflowExecution: &commonpb.WorkflowExecution{WorkflowId: "workflowId"},
+		createTestEventExternalWorkflowExecutionCancelRequested(17, historypb.ExternalWorkflowExecutionCancelRequestedEventAttributes_builder{
+			WorkflowExecution: commonpb.WorkflowExecution_builder{WorkflowId: "workflowId"}.Build(),
 			InitiatedEventId:  15,
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(18, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(19),
 		createTestEventWorkflowTaskCompleted(20, &historypb.WorkflowTaskCompletedEventAttributes{}),
 		createTestEventWorkflowTaskScheduled(21, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(22),
-		createTestEventWorkflowTaskCompleted(23, &historypb.WorkflowTaskCompletedEventAttributes{
+		createTestEventWorkflowTaskCompleted(23, historypb.WorkflowTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 21,
 			StartedEventId:   22,
-		}),
-		createTestEventWorkflowExecutionCompleted(24, &historypb.WorkflowExecutionCompletedEventAttributes{
+		}.Build()),
+		createTestEventWorkflowExecutionCompleted(24, historypb.WorkflowExecutionCompletedEventAttributes_builder{
 			WorkflowTaskCompletedEventId: 23,
-		}),
+		}.Build()),
 	}
 
-	history := &historypb.History{Events: testEvents}
+	history := historypb.History_builder{Events: testEvents}.Build()
 	logger := getLogger()
 	replayer, err := NewWorkflowReplayer(WorkflowReplayerOptions{})
 	require.NoError(s.T(), err)
@@ -1309,11 +1309,11 @@ func testReplayWorkflowCancelWorkflowWhileSleepingWithActivities(ctx Context) er
 func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_CancelWorkflowWhileSleepingWithActivities() {
 	taskQueue := "taskQueue1"
 	testEvents := []*historypb.HistoryEvent{
-		createTestEventWorkflowExecutionStarted(1, &historypb.WorkflowExecutionStartedEventAttributes{
-			WorkflowType: &commonpb.WorkflowType{Name: "testReplayWorkflowCancelWorkflowWhileSleepingWithActivities"},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
+		createTestEventWorkflowExecutionStarted(1, historypb.WorkflowExecutionStartedEventAttributes_builder{
+			WorkflowType: commonpb.WorkflowType_builder{Name: "testReplayWorkflowCancelWorkflowWhileSleepingWithActivities"}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
 			Input:        testEncodeFunctionArgs(converter.GetDefaultDataConverter()),
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(2, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(3),
 		createTestEventWorkflowTaskCompleted(4, &historypb.WorkflowTaskCompletedEventAttributes{}),
@@ -1323,23 +1323,23 @@ func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_CancelWorkflowWhileS
 		createTestEventWorkflowTaskStarted(8),
 		createTestEventWorkflowTaskCompleted(9, &historypb.WorkflowTaskCompletedEventAttributes{}),
 		createTestEventTimerCanceled(10, 5),
-		createTestEventActivityTaskScheduled(11, &historypb.ActivityTaskScheduledEventAttributes{
+		createTestEventActivityTaskScheduled(11, historypb.ActivityTaskScheduledEventAttributes_builder{
 			ActivityId:   "11",
-			ActivityType: &commonpb.ActivityType{Name: "testInfiniteActivity"},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
-		}),
-		createTestEventActivityTaskStarted(12, &historypb.ActivityTaskStartedEventAttributes{
+			ActivityType: commonpb.ActivityType_builder{Name: "testInfiniteActivity"}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
+		}.Build()),
+		createTestEventActivityTaskStarted(12, historypb.ActivityTaskStartedEventAttributes_builder{
 			ScheduledEventId: 11,
-		}),
-		createTestEventActivityTaskCompleted(13, &historypb.ActivityTaskCompletedEventAttributes{
+		}.Build()),
+		createTestEventActivityTaskCompleted(13, historypb.ActivityTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 11,
 			StartedEventId:   12,
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(14, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(15),
 	}
 
-	history := &historypb.History{Events: testEvents}
+	history := historypb.History_builder{Events: testEvents}.Build()
 	logger := getLogger()
 	replayer, err := NewWorkflowReplayer(WorkflowReplayerOptions{})
 	require.NoError(s.T(), err)
@@ -1355,28 +1355,28 @@ func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_LocalActivity_Activi
 	taskQueue := "taskQueue1"
 	result, _ := converter.GetDefaultDataConverter().ToPayloads("some-incorrect-result")
 	testEvents := []*historypb.HistoryEvent{
-		createTestEventWorkflowExecutionStarted(1, &historypb.WorkflowExecutionStartedEventAttributes{
-			WorkflowType: &commonpb.WorkflowType{Name: "go.temporal.io/sdk/internal.testReplayWorkflow"},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
+		createTestEventWorkflowExecutionStarted(1, historypb.WorkflowExecutionStartedEventAttributes_builder{
+			WorkflowType: commonpb.WorkflowType_builder{Name: "go.temporal.io/sdk/internal.testReplayWorkflow"}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
 			Input:        testEncodeFunctionArgs(converter.GetDefaultDataConverter()),
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(2, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(3),
 		createTestEventWorkflowTaskCompleted(4, &historypb.WorkflowTaskCompletedEventAttributes{}),
 
-		createTestEventMarkerRecorded(5, &historypb.MarkerRecordedEventAttributes{
+		createTestEventMarkerRecorded(5, historypb.MarkerRecordedEventAttributes_builder{
 			MarkerName:                   localActivityMarkerName,
 			Details:                      s.createLocalActivityMarkerDataForTest("0"),
 			WorkflowTaskCompletedEventId: 4,
-		}),
+		}.Build()),
 
-		createTestEventWorkflowExecutionCompleted(6, &historypb.WorkflowExecutionCompletedEventAttributes{
+		createTestEventWorkflowExecutionCompleted(6, historypb.WorkflowExecutionCompletedEventAttributes_builder{
 			Result:                       result,
 			WorkflowTaskCompletedEventId: 4,
-		}),
+		}.Build()),
 	}
 
-	history := &historypb.History{Events: testEvents}
+	history := historypb.History_builder{Events: testEvents}.Build()
 	logger := getLogger()
 	replayer, err := NewWorkflowReplayer(WorkflowReplayerOptions{})
 	require.NoError(s.T(), err)
@@ -1451,11 +1451,11 @@ func testReplayRunID(ctx Context) error {
 func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_SideEffect() {
 	taskQueue := "taskQueue1"
 	testEvents := []*historypb.HistoryEvent{
-		createTestEventWorkflowExecutionStarted(1, &historypb.WorkflowExecutionStartedEventAttributes{
-			WorkflowType: &commonpb.WorkflowType{Name: "testReplayWorkflowSideEffect"},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
+		createTestEventWorkflowExecutionStarted(1, historypb.WorkflowExecutionStartedEventAttributes_builder{
+			WorkflowType: commonpb.WorkflowType_builder{Name: "testReplayWorkflowSideEffect"}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
 			Input:        testEncodeFunctionArgs(converter.GetDefaultDataConverter()),
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(2, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(3),
 		createTestEventWorkflowTaskCompleted(4, &historypb.WorkflowTaskCompletedEventAttributes{}),
@@ -1466,66 +1466,66 @@ func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_SideEffect() {
 		createTestEventWorkflowTaskCompleted(9, &historypb.WorkflowTaskCompletedEventAttributes{}),
 		createTestEventSideEffectMarker(10, 9, 1, 100),
 
-		createTestEventActivityTaskScheduled(11, &historypb.ActivityTaskScheduledEventAttributes{
+		createTestEventActivityTaskScheduled(11, historypb.ActivityTaskScheduledEventAttributes_builder{
 			ActivityId:   "11",
-			ActivityType: &commonpb.ActivityType{Name: "A1"},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
-		}),
-		createTestEventActivityTaskScheduled(12, &historypb.ActivityTaskScheduledEventAttributes{
+			ActivityType: commonpb.ActivityType_builder{Name: "A1"}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
+		}.Build()),
+		createTestEventActivityTaskScheduled(12, historypb.ActivityTaskScheduledEventAttributes_builder{
 			ActivityId:   "12",
-			ActivityType: &commonpb.ActivityType{Name: "A2"},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
-		}),
-		createTestEventActivityTaskScheduled(13, &historypb.ActivityTaskScheduledEventAttributes{
+			ActivityType: commonpb.ActivityType_builder{Name: "A2"}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
+		}.Build()),
+		createTestEventActivityTaskScheduled(13, historypb.ActivityTaskScheduledEventAttributes_builder{
 			ActivityId:   "13",
-			ActivityType: &commonpb.ActivityType{Name: "A3"},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
-		}),
-		createTestEventActivityTaskStarted(14, &historypb.ActivityTaskStartedEventAttributes{
+			ActivityType: commonpb.ActivityType_builder{Name: "A3"}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
+		}.Build()),
+		createTestEventActivityTaskStarted(14, historypb.ActivityTaskStartedEventAttributes_builder{
 			ScheduledEventId: 11,
-		}),
-		createTestEventActivityTaskCompleted(15, &historypb.ActivityTaskCompletedEventAttributes{
+		}.Build()),
+		createTestEventActivityTaskCompleted(15, historypb.ActivityTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 11,
 			StartedEventId:   14,
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(16, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(17),
-		createTestEventWorkflowTaskCompleted(18, &historypb.WorkflowTaskCompletedEventAttributes{
+		createTestEventWorkflowTaskCompleted(18, historypb.WorkflowTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 16,
 			StartedEventId:   17,
-		}),
-		createTestEventActivityTaskStarted(19, &historypb.ActivityTaskStartedEventAttributes{
+		}.Build()),
+		createTestEventActivityTaskStarted(19, historypb.ActivityTaskStartedEventAttributes_builder{
 			ScheduledEventId: 13,
-		}),
-		createTestEventActivityTaskCompleted(20, &historypb.ActivityTaskCompletedEventAttributes{
+		}.Build()),
+		createTestEventActivityTaskCompleted(20, historypb.ActivityTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 13,
 			StartedEventId:   19,
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(21, &historypb.WorkflowTaskScheduledEventAttributes{}),
-		createTestEventActivityTaskStarted(22, &historypb.ActivityTaskStartedEventAttributes{
+		createTestEventActivityTaskStarted(22, historypb.ActivityTaskStartedEventAttributes_builder{
 			ScheduledEventId: 12,
-		}),
-		createTestEventActivityTaskCompleted(23, &historypb.ActivityTaskCompletedEventAttributes{
+		}.Build()),
+		createTestEventActivityTaskCompleted(23, historypb.ActivityTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 12,
 			StartedEventId:   22,
-		}),
-		createTestEventWorkflowTaskTimedOut(24, &historypb.WorkflowTaskTimedOutEventAttributes{
+		}.Build()),
+		createTestEventWorkflowTaskTimedOut(24, historypb.WorkflowTaskTimedOutEventAttributes_builder{
 			ScheduledEventId: 21,
 			StartedEventId:   0,
 			TimeoutType:      enumspb.TIMEOUT_TYPE_SCHEDULE_TO_START,
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(25, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(26),
-		createTestEventWorkflowTaskCompleted(27, &historypb.WorkflowTaskCompletedEventAttributes{
+		createTestEventWorkflowTaskCompleted(27, historypb.WorkflowTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 25,
 			StartedEventId:   26,
-		}),
-		createTestEventWorkflowExecutionCompleted(28, &historypb.WorkflowExecutionCompletedEventAttributes{
+		}.Build()),
+		createTestEventWorkflowExecutionCompleted(28, historypb.WorkflowExecutionCompletedEventAttributes_builder{
 			WorkflowTaskCompletedEventId: 27,
-		}),
+		}.Build()),
 	}
 
-	history := &historypb.History{Events: testEvents}
+	history := historypb.History_builder{Events: testEvents}.Build()
 	logger := getLogger()
 	replayer, err := NewWorkflowReplayer(WorkflowReplayerOptions{})
 	require.NoError(s.T(), err)
@@ -1537,38 +1537,38 @@ func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_SideEffect() {
 func (s *internalWorkerTestSuite) TestReplayWorkflowHistory_ReplayRunID() {
 	taskQueue := "taskQueue1"
 	testEvents := []*historypb.HistoryEvent{
-		createTestEventWorkflowExecutionStarted(1, &historypb.WorkflowExecutionStartedEventAttributes{
-			WorkflowType: &commonpb.WorkflowType{Name: "testReplayRunID"},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
+		createTestEventWorkflowExecutionStarted(1, historypb.WorkflowExecutionStartedEventAttributes_builder{
+			WorkflowType: commonpb.WorkflowType_builder{Name: "testReplayRunID"}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
 			Input:        testEncodeFunctionArgs(converter.GetDefaultDataConverter()),
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(2, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(3),
 		createTestEventWorkflowTaskCompleted(4, &historypb.WorkflowTaskCompletedEventAttributes{}),
-		createTestEventActivityTaskScheduled(5, &historypb.ActivityTaskScheduledEventAttributes{
+		createTestEventActivityTaskScheduled(5, historypb.ActivityTaskScheduledEventAttributes_builder{
 			ActivityId:   "5",
-			ActivityType: &commonpb.ActivityType{Name: "A1"},
-			TaskQueue:    &taskqueuepb.TaskQueue{Name: taskQueue},
-		}),
-		createTestEventActivityTaskStarted(6, &historypb.ActivityTaskStartedEventAttributes{
+			ActivityType: commonpb.ActivityType_builder{Name: "A1"}.Build(),
+			TaskQueue:    taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
+		}.Build()),
+		createTestEventActivityTaskStarted(6, historypb.ActivityTaskStartedEventAttributes_builder{
 			ScheduledEventId: 5,
-		}),
-		createTestEventActivityTaskCompleted(7, &historypb.ActivityTaskCompletedEventAttributes{
+		}.Build()),
+		createTestEventActivityTaskCompleted(7, historypb.ActivityTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 5,
 			StartedEventId:   6,
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(8, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(9),
-		createTestEventWorkflowTaskCompleted(10, &historypb.WorkflowTaskCompletedEventAttributes{
+		createTestEventWorkflowTaskCompleted(10, historypb.WorkflowTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 8,
 			StartedEventId:   9,
-		}),
-		createTestEventWorkflowExecutionCompleted(11, &historypb.WorkflowExecutionCompletedEventAttributes{
+		}.Build()),
+		createTestEventWorkflowExecutionCompleted(11, historypb.WorkflowExecutionCompletedEventAttributes_builder{
 			WorkflowTaskCompletedEventId: 10,
-		}),
+		}.Build()),
 	}
 
-	history := &historypb.History{Events: testEvents}
+	history := historypb.History_builder{Events: testEvents}.Build()
 	logger := getLogger()
 	replayer, err := NewWorkflowReplayer(WorkflowReplayerOptions{})
 	require.NoError(s.T(), err)
@@ -1603,10 +1603,10 @@ func (s *internalWorkerTestSuite) TestReplayWorkflowHistoryFromFile() {
 func (s *internalWorkerTestSuite) testWorkflowTaskHandlerHelper(params workerExecutionParameters) {
 	taskQueue := "taskQueue1"
 	testEvents := []*historypb.HistoryEvent{
-		createTestEventWorkflowExecutionStarted(1, &historypb.WorkflowExecutionStartedEventAttributes{
-			TaskQueue: &taskqueuepb.TaskQueue{Name: taskQueue},
+		createTestEventWorkflowExecutionStarted(1, historypb.WorkflowExecutionStartedEventAttributes_builder{
+			TaskQueue: taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
 			Input:     testEncodeFunctionArgs(params.DataConverter),
-		}),
+		}.Build()),
 		createTestEventWorkflowTaskScheduled(2, &historypb.WorkflowTaskScheduledEventAttributes{}),
 		createTestEventWorkflowTaskStarted(3),
 	}
@@ -1615,12 +1615,12 @@ func (s *internalWorkerTestSuite) testWorkflowTaskHandlerHelper(params workerExe
 	workflowID := "testID"
 	runID := "testRunID"
 
-	task := &workflowservice.PollWorkflowTaskQueueResponse{
-		WorkflowExecution:      &commonpb.WorkflowExecution{WorkflowId: workflowID, RunId: runID},
-		WorkflowType:           &commonpb.WorkflowType{Name: workflowType},
-		History:                &historypb.History{Events: testEvents},
+	task := workflowservice.PollWorkflowTaskQueueResponse_builder{
+		WorkflowExecution:      commonpb.WorkflowExecution_builder{WorkflowId: workflowID, RunId: runID}.Build(),
+		WorkflowType:           commonpb.WorkflowType_builder{Name: workflowType}.Build(),
+		History:                historypb.History_builder{Events: testEvents}.Build(),
 		PreviousStartedEventId: 0,
-	}
+	}.Build()
 
 	r := newWorkflowTaskHandler(params, nil, s.registry)
 	wfctx, err := r.GetOrCreateWorkflowContext(task, nil)
@@ -1831,8 +1831,8 @@ func (m *mockPollActivityTaskQueueRequest) Matches(x interface{}) bool {
 		return false
 	}
 
-	if v.TaskQueueMetadata != nil && v.TaskQueueMetadata.MaxTasksPerSecond != nil {
-		return v.TaskQueueMetadata.MaxTasksPerSecond.GetValue() == m.tps
+	if v.HasTaskQueueMetadata() && v.GetTaskQueueMetadata().HasMaxTasksPerSecond() {
+		return v.GetTaskQueueMetadata().GetMaxTasksPerSecond().GetValue() == m.tps
 	}
 
 	return false
@@ -1877,12 +1877,12 @@ func createWorkerWithThrottle(
 
 func setupPollingMocks(namespace string, service *workflowservicemock.MockWorkflowServiceClient, activitiesPerSecond float64) {
 	namespaceState := enumspb.NAMESPACE_STATE_REGISTERED
-	namespaceDesc := &workflowservice.DescribeNamespaceResponse{
-		NamespaceInfo: &namespacepb.NamespaceInfo{
+	namespaceDesc := workflowservice.DescribeNamespaceResponse_builder{
+		NamespaceInfo: namespacepb.NamespaceInfo_builder{
 			Name:  namespace,
 			State: namespaceState,
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	service.EXPECT().DescribeNamespace(gomock.Any(), gomock.Any(), gomock.Any()).Return(namespaceDesc, nil).Do(
 		func(ctx context.Context, request *workflowservice.DescribeNamespaceRequest, opts ...grpc.CallOption) {
@@ -1957,7 +1957,7 @@ func (s *internalWorkerTestSuite) TestCompleteActivityWithContextAwareDataConver
 	s.service.EXPECT().RespondActivityTaskCompleted(gomock.Any(), gomock.Any(), gomock.Any()).Return(response, nil).
 		Do(func(_ interface{}, req *workflowservice.RespondActivityTaskCompletedRequest, _ ...interface{}) {
 			dc := client.dataConverter
-			results := dc.ToStrings(req.Result)
+			results := dc.ToStrings(req.GetResult())
 			s.Equal("\"t?st\"", results[0])
 		})
 
@@ -2008,7 +2008,7 @@ func (s *internalWorkerTestSuite) TestCompleteActivityByIDWithContextAwareDataCo
 	s.service.EXPECT().RespondActivityTaskCompletedById(gomock.Any(), gomock.Any(), gomock.Any()).Return(response, nil).
 		Do(func(_ interface{}, req *workflowservice.RespondActivityTaskCompletedByIdRequest, _ ...interface{}) {
 			dc := client.dataConverter
-			results := dc.ToStrings(req.Result)
+			results := dc.ToStrings(req.GetResult())
 			s.Equal("\"t?st\"", results[0])
 		})
 
@@ -2018,8 +2018,8 @@ func (s *internalWorkerTestSuite) TestCompleteActivityByIDWithContextAwareDataCo
 func (s *internalWorkerTestSuite) TestRecordActivityHeartbeat() {
 	wfClient := NewServiceClient(s.service, nil, ClientOptions{Namespace: "testNamespace"})
 	var heartbeatRequest *workflowservice.RecordActivityTaskHeartbeatRequest
-	heartbeatResponse := workflowservice.RecordActivityTaskHeartbeatResponse{CancelRequested: false}
-	s.service.EXPECT().RecordActivityTaskHeartbeat(gomock.Any(), gomock.Any(), gomock.Any()).Return(&heartbeatResponse, nil).
+	heartbeatResponse := workflowservice.RecordActivityTaskHeartbeatResponse_builder{CancelRequested: false}.Build()
+	s.service.EXPECT().RecordActivityTaskHeartbeat(gomock.Any(), gomock.Any(), gomock.Any()).Return(heartbeatResponse, nil).
 		Do(func(ctx context.Context, request *workflowservice.RecordActivityTaskHeartbeatRequest, opts ...grpc.CallOption) {
 			heartbeatRequest = request
 		}).Times(2)
@@ -2035,16 +2035,16 @@ func (s *internalWorkerTestSuite) TestRecordActivityHeartbeatWithDataConverter()
 	opt := ClientOptions{Namespace: "testNamespace", DataConverter: dc}
 	wfClient := NewServiceClient(s.service, nil, opt)
 	var heartbeatRequest *workflowservice.RecordActivityTaskHeartbeatRequest
-	heartbeatResponse := workflowservice.RecordActivityTaskHeartbeatResponse{CancelRequested: false}
+	heartbeatResponse := workflowservice.RecordActivityTaskHeartbeatResponse_builder{CancelRequested: false}.Build()
 	detail1 := "testStack"
 	detail2 := testStruct{"abc", 123}
 	detail3 := 4
 	encodedDetail, err := dc.ToPayloads(detail1, detail2, detail3)
 	require.Nil(t, err)
-	s.service.EXPECT().RecordActivityTaskHeartbeat(gomock.Any(), gomock.Any(), gomock.Any()).Return(&heartbeatResponse, nil).
+	s.service.EXPECT().RecordActivityTaskHeartbeat(gomock.Any(), gomock.Any(), gomock.Any()).Return(heartbeatResponse, nil).
 		Do(func(ctx context.Context, request *workflowservice.RecordActivityTaskHeartbeatRequest, opts ...grpc.CallOption) {
 			heartbeatRequest = request
-			require.Equal(t, encodedDetail, request.Details)
+			require.Equal(t, encodedDetail, request.GetDetails())
 		}).Times(1)
 
 	_ = wfClient.RecordActivityHeartbeat(context.Background(), nil, detail1, detail2, detail3)
@@ -2054,8 +2054,8 @@ func (s *internalWorkerTestSuite) TestRecordActivityHeartbeatWithDataConverter()
 func (s *internalWorkerTestSuite) TestRecordActivityHeartbeatByID() {
 	wfClient := NewServiceClient(s.service, nil, ClientOptions{Namespace: "testNamespace"})
 	var heartbeatRequest *workflowservice.RecordActivityTaskHeartbeatByIdRequest
-	heartbeatResponse := workflowservice.RecordActivityTaskHeartbeatByIdResponse{CancelRequested: false}
-	s.service.EXPECT().RecordActivityTaskHeartbeatById(gomock.Any(), gomock.Any(), gomock.Any()).Return(&heartbeatResponse, nil).
+	heartbeatResponse := workflowservice.RecordActivityTaskHeartbeatByIdResponse_builder{CancelRequested: false}.Build()
+	s.service.EXPECT().RecordActivityTaskHeartbeatById(gomock.Any(), gomock.Any(), gomock.Any()).Return(heartbeatResponse, nil).
 		Do(func(ctx context.Context, request *workflowservice.RecordActivityTaskHeartbeatByIdRequest, opts ...grpc.CallOption) {
 			heartbeatRequest = request
 		}).Times(2)
@@ -2898,7 +2898,7 @@ func TestHistoryFromJSON(t *testing.T) {
 	hist, err := HistoryFromJSON(r, 0)
 	require.NoError(t, err)
 	require.NoError(t, r.Close())
-	require.Len(t, hist.Events, 11)
+	require.Len(t, hist.GetEvents(), 11)
 
 	// Only load up through event 5 and confirm
 	r, err = os.Open("testdata/sampleHistory.json")
@@ -2906,7 +2906,7 @@ func TestHistoryFromJSON(t *testing.T) {
 	hist, err = HistoryFromJSON(r, 5)
 	require.NoError(t, err)
 	require.NoError(t, r.Close())
-	require.Len(t, hist.Events, 5)
+	require.Len(t, hist.GetEvents(), 5)
 }
 
 func aliasNameClash1(context.Context) (string, error) { return "func1", nil }

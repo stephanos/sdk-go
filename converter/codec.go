@@ -68,10 +68,10 @@ func (z *zlibCodec) Encode(payloads []*commonpb.Payload) ([]*commonpb.Payload, e
 		}
 		// Only set if smaller than original amount or has option to always encode
 		if buf.Len() < len(b) || z.options.AlwaysEncode {
-			result[i] = &commonpb.Payload{
+			result[i] = commonpb.Payload_builder{
 				Metadata: map[string][]byte{MetadataEncoding: []byte("binary/zlib")},
 				Data:     buf.Bytes(),
-			}
+			}.Build()
 		} else {
 			result[i] = p
 		}
@@ -83,11 +83,11 @@ func (*zlibCodec) Decode(payloads []*commonpb.Payload) ([]*commonpb.Payload, err
 	result := make([]*commonpb.Payload, len(payloads))
 	for i, p := range payloads {
 		// Only if it's our encoding
-		if string(p.Metadata[MetadataEncoding]) != "binary/zlib" {
+		if string(p.GetMetadata()[MetadataEncoding]) != "binary/zlib" {
 			result[i] = p
 			continue
 		}
-		r, err := zlib.NewReader(bytes.NewReader(p.Data))
+		r, err := zlib.NewReader(bytes.NewReader(p.GetData()))
 		if err != nil {
 			return payloads, err
 		}
@@ -172,8 +172,8 @@ func (e *CodecDataConverter) ToPayloads(value ...interface{}) (*commonpb.Payload
 	if payloads == nil || err != nil {
 		return payloads, err
 	}
-	encodedPayloads, err := e.encode(payloads.Payloads)
-	return &commonpb.Payloads{Payloads: encodedPayloads}, err
+	encodedPayloads, err := e.encode(payloads.GetPayloads())
+	return commonpb.Payloads_builder{Payloads: encodedPayloads}.Build(), err
 }
 
 // FromPayload implements DataConverter.FromPayload performing decoding on the
@@ -198,11 +198,11 @@ func (e *CodecDataConverter) FromPayloads(payloads *commonpb.Payloads, valuePtrs
 	if payloads == nil {
 		return e.parent.FromPayloads(payloads, valuePtrs...)
 	}
-	decodedPayloads, err := e.decode(payloads.Payloads)
+	decodedPayloads, err := e.decode(payloads.GetPayloads())
 	if err != nil {
 		return err
 	}
-	return e.parent.FromPayloads(&commonpb.Payloads{Payloads: decodedPayloads}, valuePtrs...)
+	return e.parent.FromPayloads(commonpb.Payloads_builder{Payloads: decodedPayloads}.Build(), valuePtrs...)
 }
 
 // ToString implements DataConverter.ToString performing decoding on the given
@@ -223,9 +223,9 @@ func (e *CodecDataConverter) ToStrings(payloads *commonpb.Payloads) []string {
 	if payloads == nil {
 		return nil
 	}
-	strs := make([]string, len(payloads.Payloads))
+	strs := make([]string, len(payloads.GetPayloads()))
 	// Perform decoding one by one here so that we return individual errors
-	for i, payload := range payloads.Payloads {
+	for i, payload := range payloads.GetPayloads() {
 		strs[i] = e.ToString(payload)
 	}
 	return strs
@@ -292,7 +292,7 @@ func (e *codecHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payloads := payloadspb.Payloads
+	payloads := payloadspb.GetPayloads()
 
 	switch {
 	case strings.HasSuffix(path, remotePayloadCodecEncodePath):
@@ -311,7 +311,8 @@ func (e *codecHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	err = json.NewEncoder(w).Encode(commonpb.Payloads{Payloads: payloads})
+	// DO NOT SUBMIT: fix callers to work with a pointer (go/goprotoapi-findings#message-value)
+	err = json.NewEncoder(w).Encode(commonpb.Payloads_builder{Payloads: payloads}.Build())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -352,7 +353,8 @@ func (pc *remotePayloadCodec) Decode(payloads []*commonpb.Payload) ([]*commonpb.
 }
 
 func (pc *remotePayloadCodec) encodeOrDecode(endpoint string, payloads []*commonpb.Payload) ([]*commonpb.Payload, error) {
-	requestPayloads, err := json.Marshal(commonpb.Payloads{Payloads: payloads})
+	// DO NOT SUBMIT: fix callers to work with a pointer (go/goprotoapi-findings#message-value)
+	requestPayloads, err := json.Marshal(commonpb.Payloads_builder{Payloads: payloads}.Build())
 	if err != nil {
 		return payloads, fmt.Errorf("unable to marshal payloads: %w", err)
 	}
@@ -387,10 +389,10 @@ func (pc *remotePayloadCodec) encodeOrDecode(endpoint string, payloads []*common
 		if err != nil {
 			return payloads, fmt.Errorf("unable to unmarshal payloads: %w", err)
 		}
-		if len(payloads) != len(resultPayloads.Payloads) {
-			return payloads, fmt.Errorf("received %d payloads from remote codec, expected %d", len(resultPayloads.Payloads), len(payloads))
+		if len(payloads) != len(resultPayloads.GetPayloads()) {
+			return payloads, fmt.Errorf("received %d payloads from remote codec, expected %d", len(resultPayloads.GetPayloads()), len(payloads))
 		}
-		return resultPayloads.Payloads, nil
+		return resultPayloads.GetPayloads(), nil
 	}
 
 	message, _ := io.ReadAll(response.Body)
@@ -441,8 +443,8 @@ func (rdc *remoteDataConverter) ToPayloads(value ...interface{}) (*commonpb.Payl
 	if payloads == nil || err != nil {
 		return payloads, err
 	}
-	encodedPayloads, err := rdc.payloadCodec.Encode(payloads.Payloads)
-	return &commonpb.Payloads{Payloads: encodedPayloads}, err
+	encodedPayloads, err := rdc.payloadCodec.Encode(payloads.GetPayloads())
+	return commonpb.Payloads_builder{Payloads: encodedPayloads}.Build(), err
 }
 
 // FromPayload implements DataConverter.FromPayload performing remote decoding on the
@@ -462,11 +464,11 @@ func (rdc *remoteDataConverter) FromPayloads(payloads *commonpb.Payloads, valueP
 		return rdc.parent.FromPayloads(payloads, valuePtrs...)
 	}
 
-	decodedPayloads, err := rdc.payloadCodec.Decode(payloads.Payloads)
+	decodedPayloads, err := rdc.payloadCodec.Decode(payloads.GetPayloads())
 	if err != nil {
 		return err
 	}
-	return rdc.parent.FromPayloads(&commonpb.Payloads{Payloads: decodedPayloads}, valuePtrs...)
+	return rdc.parent.FromPayloads(commonpb.Payloads_builder{Payloads: decodedPayloads}.Build(), valuePtrs...)
 }
 
 // ToString implements DataConverter.ToString performing remote decoding on the given
@@ -489,9 +491,9 @@ func (rdc *remoteDataConverter) ToStrings(payloads *commonpb.Payloads) []string 
 		return nil
 	}
 
-	strs := make([]string, len(payloads.Payloads))
+	strs := make([]string, len(payloads.GetPayloads()))
 	// Perform decoding one by one here so that we return individual errors
-	for i, payload := range payloads.Payloads {
+	for i, payload := range payloads.GetPayloads() {
 		strs[i] = rdc.ToString(payload)
 	}
 	return strs

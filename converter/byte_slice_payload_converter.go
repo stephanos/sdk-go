@@ -33,7 +33,7 @@ func (c *ByteSlicePayloadConverter) FromPayload(payload *commonpb.Payload, value
 		return fmt.Errorf("type: %T: %w", valuePtr, ErrValuePtrIsNotPointer)
 	}
 	v := rv.Elem()
-	value := payload.Data
+	value := payload.GetData()
 	if v.Kind() == reflect.Interface {
 		v.Set(reflect.ValueOf(value))
 	} else if v.Kind() == reflect.Slice && v.Type().Elem().Kind() == reflect.Uint8 {

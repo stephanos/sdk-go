@@ -84,11 +84,11 @@ func Test_ActivityErrorAccessors(t *testing.T) {
 	err := NewApplicationError("app err", "", true, nil)
 	var applicationErr *ApplicationError
 	require.True(errors.As(err, &applicationErr))
-	err = NewActivityError(8, 22, "alex", &commonpb.ActivityType{Name: "activityType"}, "32283", enumspb.RETRY_STATE_NON_RETRYABLE_FAILURE, applicationErr)
+	err = NewActivityError(8, 22, "alex", commonpb.ActivityType_builder{Name: "activityType"}.Build(), "32283", enumspb.RETRY_STATE_NON_RETRYABLE_FAILURE, applicationErr)
 	var activityErr *ActivityError
 	require.True(errors.As(err, &activityErr))
 	require.Equal("32283", activityErr.ActivityID())
-	require.Equal(&commonpb.ActivityType{Name: "activityType"}, activityErr.ActivityType())
+	require.Equal(commonpb.ActivityType_builder{Name: "activityType"}.Build(), activityErr.ActivityType())
 	require.Equal(enumspb.RETRY_STATE_NON_RETRYABLE_FAILURE, activityErr.RetryState())
 	require.Equal("alex", activityErr.Identity())
 	require.Equal(int64(8), activityErr.ScheduledEventID())
@@ -142,7 +142,7 @@ func testTimeoutErrorDetails(t *testing.T, timeoutType enumspb.TimeoutType) {
 	context.commandsHelper.scheduledEventIDToActivityID[5] = activityID
 	di := h.newActivityCommandStateMachine(
 		5,
-		&commandpb.ScheduleActivityTaskCommandAttributes{ActivityId: activityID}, nil)
+		commandpb.ScheduleActivityTaskCommandAttributes_builder{ActivityId: activityID}.Build(), nil)
 	di.state = commandStateInitiated
 	di.setData(&scheduledActivity{
 		callback: func(r *commonpb.Payloads, e error) {
@@ -151,17 +151,17 @@ func testTimeoutErrorDetails(t *testing.T, timeoutType enumspb.TimeoutType) {
 	})
 	context.commandsHelper.addCommand(di)
 	encodedDetails1, _ := context.dataConverter.ToPayloads(testErrorDetails1)
-	event := createTestEventActivityTaskTimedOut(7, &historypb.ActivityTaskTimedOutEventAttributes{
-		Failure: &failurepb.Failure{
-			FailureInfo: &failurepb.Failure_TimeoutFailureInfo{TimeoutFailureInfo: &failurepb.TimeoutFailureInfo{
+	event := createTestEventActivityTaskTimedOut(7, historypb.ActivityTaskTimedOutEventAttributes_builder{
+		Failure: failurepb.Failure_builder{
+			TimeoutFailureInfo: failurepb.TimeoutFailureInfo_builder{
 				LastHeartbeatDetails: encodedDetails1,
 				TimeoutType:          timeoutType,
-			}},
-		},
+			}.Build(),
+		}.Build(),
 		RetryState:       enumspb.RETRY_STATE_TIMEOUT,
 		ScheduledEventId: 5,
 		StartedEventId:   6,
-	})
+	}.Build())
 	weh := &workflowExecutionEventHandlerImpl{context, nil}
 	_ = weh.handleActivityTaskTimedOut(event)
 	var timeoutErr *TimeoutError
@@ -488,10 +488,10 @@ func Test_SignalExternalWorkflowExecutionFailedError(t *testing.T) {
 	})
 	context.commandsHelper.addCommand(di)
 	weh := &workflowExecutionEventHandlerImpl{context, nil}
-	event := createTestEventSignalExternalWorkflowExecutionFailed(1, &historypb.SignalExternalWorkflowExecutionFailedEventAttributes{
+	event := createTestEventSignalExternalWorkflowExecutionFailed(1, historypb.SignalExternalWorkflowExecutionFailedEventAttributes_builder{
 		InitiatedEventId: initiatedEventID,
 		Cause:            enumspb.SIGNAL_EXTERNAL_WORKFLOW_EXECUTION_FAILED_CAUSE_EXTERNAL_WORKFLOW_EXECUTION_NOT_FOUND,
-	})
+	}.Build())
 	require.NoError(t, weh.handleSignalExternalWorkflowExecutionFailed(event))
 	_, ok := actualErr.(*UnknownExternalWorkflowExecutionError)
 	require.True(t, ok)
@@ -509,9 +509,9 @@ func Test_ContinueAsNewError(t *testing.T) {
 	dataConverter := converter.GetDefaultDataConverter()
 	headerValue, err := dataConverter.ToPayload("test-data")
 	assert.NoError(t, err)
-	header := &commonpb.Header{
+	header := commonpb.Header_builder{
 		Fields: map[string]*commonpb.Payload{"test": headerValue},
-	}
+	}.Build()
 
 	s := &WorkflowTestSuite{
 		header:             header,
@@ -965,7 +965,7 @@ func Test_convertErrorToFailure_ActivityError(t *testing.T) {
 	err := NewApplicationError("app err", "", true, nil)
 	var applicationErr *ApplicationError
 	require.True(errors.As(err, &applicationErr))
-	err = NewActivityError(8, 22, "alex", &commonpb.ActivityType{Name: "activityType"}, "32283", enumspb.RETRY_STATE_NON_RETRYABLE_FAILURE, applicationErr)
+	err = NewActivityError(8, 22, "alex", commonpb.ActivityType_builder{Name: "activityType"}.Build(), "32283", enumspb.RETRY_STATE_NON_RETRYABLE_FAILURE, applicationErr)
 	var activityErr *ActivityError
 	require.True(errors.As(err, &activityErr))
 	f := fc.ErrorToFailure(err)
@@ -1021,10 +1021,10 @@ func Test_convertErrorToFailure_NexusHandlerError(t *testing.T) {
 		RetryBehavior: nexus.HandlerErrorRetryBehaviorNonRetryable,
 	})
 	require.Equal("handler error (INTERNAL): custom cause", f.GetMessage())
-	require.Equal(string(nexus.HandlerErrorTypeInternal), f.GetNexusHandlerFailureInfo().Type)
-	require.Equal(enumspb.NEXUS_HANDLER_ERROR_RETRY_BEHAVIOR_NON_RETRYABLE, f.GetNexusHandlerFailureInfo().RetryBehavior)
-	require.Equal("", f.Cause.GetApplicationFailureInfo().Type)
-	require.Equal("custom cause", f.Cause.Message)
+	require.Equal(string(nexus.HandlerErrorTypeInternal), f.GetNexusHandlerFailureInfo().GetType())
+	require.Equal(enumspb.NEXUS_HANDLER_ERROR_RETRY_BEHAVIOR_NON_RETRYABLE, f.GetNexusHandlerFailureInfo().GetRetryBehavior())
+	require.Equal("", f.GetCause().GetApplicationFailureInfo().GetType())
+	require.Equal("custom cause", f.GetCause().GetMessage())
 
 	err := fc.FailureToError(f)
 	var handlerErr *nexus.HandlerError
@@ -1063,15 +1063,15 @@ func Test_convertErrorToFailure_SavedFailure(t *testing.T) {
 	var applicationErr *ApplicationError
 	require.True(errors.As(err, &applicationErr))
 
-	applicationErr.originalFailure = &failurepb.Failure{
+	applicationErr.originalFailure = failurepb.Failure_builder{
 		Message:    "actual message",
 		StackTrace: "some stack trace",
 		Source:     "JavaSDK",
-		FailureInfo: &failurepb.Failure_ApplicationFailureInfo{ApplicationFailureInfo: &failurepb.ApplicationFailureInfo{
+		ApplicationFailureInfo: failurepb.ApplicationFailureInfo_builder{
 			Type:         "SomeJavaException",
 			NonRetryable: true,
-		}},
-	}
+		}.Build(),
+	}.Build()
 	f := fc.ErrorToFailure(err)
 	require.Equal("actual message", f.GetMessage())
 	require.Equal("JavaSDK", f.GetSource())
@@ -1087,22 +1087,22 @@ func Test_convertFailureToError_ApplicationFailure(t *testing.T) {
 	details, err := converter.GetDefaultDataConverter().ToPayloads("details", 22)
 	assert.NoError(t, err)
 
-	f := &failurepb.Failure{
+	f := failurepb.Failure_builder{
 		Message: "message",
-		FailureInfo: &failurepb.Failure_ApplicationFailureInfo{ApplicationFailureInfo: &failurepb.ApplicationFailureInfo{
+		ApplicationFailureInfo: failurepb.ApplicationFailureInfo_builder{
 			Type:         "MyCoolType",
 			NonRetryable: true,
 			Details:      details,
 			Category:     enumspb.APPLICATION_ERROR_CATEGORY_BENIGN,
-		}},
-		Cause: &failurepb.Failure{
+		}.Build(),
+		Cause: failurepb.Failure_builder{
 			Message: "cause message",
-			FailureInfo: &failurepb.Failure_ApplicationFailureInfo{ApplicationFailureInfo: &failurepb.ApplicationFailureInfo{
+			ApplicationFailureInfo: failurepb.ApplicationFailureInfo_builder{
 				Type:         "UnknownType",
 				NonRetryable: false,
-			}},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	}.Build()
 
 	err = fc.FailureToError(f)
 	var applicationErr *ApplicationError
@@ -1123,13 +1123,13 @@ func Test_convertFailureToError_ApplicationFailure(t *testing.T) {
 	require.Equal("UnknownType", applicationErr.Type())
 	require.Equal(false, applicationErr.NonRetryable())
 
-	f = &failurepb.Failure{
+	f = failurepb.Failure_builder{
 		Message:    "message",
 		StackTrace: "long stack trace",
-		FailureInfo: &failurepb.Failure_ApplicationFailureInfo{ApplicationFailureInfo: &failurepb.ApplicationFailureInfo{
+		ApplicationFailureInfo: failurepb.ApplicationFailureInfo_builder{
 			Type: "PanicError",
-		}},
-	}
+		}.Build(),
+	}.Build()
 
 	err = fc.FailureToError(f)
 	var panicErr *PanicError
@@ -1137,14 +1137,14 @@ func Test_convertFailureToError_ApplicationFailure(t *testing.T) {
 	require.Equal("message", panicErr.Error())
 	require.Equal("long stack trace", panicErr.StackTrace())
 
-	f = &failurepb.Failure{
+	f = failurepb.Failure_builder{
 		Message: "message",
-		FailureInfo: &failurepb.Failure_ApplicationFailureInfo{ApplicationFailureInfo: &failurepb.ApplicationFailureInfo{
+		ApplicationFailureInfo: failurepb.ApplicationFailureInfo_builder{
 			Type:     "CoolError",
 			Details:  details,
 			Category: enumspb.APPLICATION_ERROR_CATEGORY_UNSPECIFIED,
-		}},
-	}
+		}.Build(),
+	}.Build()
 
 	err = fc.FailureToError(f)
 	var coolErr *ApplicationError
@@ -1162,11 +1162,11 @@ func Test_convertFailureToError_CanceledFailure(t *testing.T) {
 	details, err := converter.GetDefaultDataConverter().ToPayloads("details", 22)
 	assert.NoError(t, err)
 
-	f := &failurepb.Failure{
-		FailureInfo: &failurepb.Failure_CanceledFailureInfo{CanceledFailureInfo: &failurepb.CanceledFailureInfo{
+	f := failurepb.Failure_builder{
+		CanceledFailureInfo: failurepb.CanceledFailureInfo_builder{
 			Details: details,
-		}},
-	}
+		}.Build(),
+	}.Build()
 
 	err = fc.FailureToError(f)
 	var canceledErr *CanceledError
@@ -1181,13 +1181,13 @@ func Test_convertFailureToError_CanceledFailure(t *testing.T) {
 func Test_convertFailureToError_TimeoutFailure(t *testing.T) {
 	require := require.New(t)
 	fc := GetDefaultFailureConverter()
-	f := &failurepb.Failure{
+	f := failurepb.Failure_builder{
 		Message: "timeout",
-		FailureInfo: &failurepb.Failure_TimeoutFailureInfo{TimeoutFailureInfo: &failurepb.TimeoutFailureInfo{
+		TimeoutFailureInfo: failurepb.TimeoutFailureInfo_builder{
 			TimeoutType:          enumspb.TIMEOUT_TYPE_START_TO_CLOSE,
 			LastHeartbeatDetails: nil,
-		}},
-	}
+		}.Build(),
+	}.Build()
 
 	err := fc.FailureToError(f)
 	var timeoutErr *TimeoutError
@@ -1199,12 +1199,12 @@ func Test_convertFailureToError_TimeoutFailure(t *testing.T) {
 func Test_convertFailureToError_ServerFailure(t *testing.T) {
 	require := require.New(t)
 	fc := GetDefaultFailureConverter()
-	f := &failurepb.Failure{
+	f := failurepb.Failure_builder{
 		Message: "message",
-		FailureInfo: &failurepb.Failure_ServerFailureInfo{ServerFailureInfo: &failurepb.ServerFailureInfo{
+		ServerFailureInfo: failurepb.ServerFailureInfo_builder{
 			NonRetryable: true,
-		}},
-	}
+		}.Build(),
+	}.Build()
 
 	err := fc.FailureToError(f)
 	var serverErr *ServerError
@@ -1216,25 +1216,25 @@ func Test_convertFailureToError_ServerFailure(t *testing.T) {
 func Test_convertFailureToError_SaveFailure(t *testing.T) {
 	require := require.New(t)
 	fc := GetDefaultFailureConverter()
-	f := &failurepb.Failure{
+	f := failurepb.Failure_builder{
 		Message:    "message",
 		StackTrace: "long stack trace",
 		Source:     "JavaSDK",
-		Cause: &failurepb.Failure{
+		Cause: failurepb.Failure_builder{
 			Message:    "application message",
 			StackTrace: "application long stack trace",
 			Source:     "JavaSDK",
-			FailureInfo: &failurepb.Failure_ApplicationFailureInfo{ApplicationFailureInfo: &failurepb.ApplicationFailureInfo{
+			ApplicationFailureInfo: failurepb.ApplicationFailureInfo_builder{
 				Type:         "SomeJavaException",
 				NonRetryable: true,
-			}},
-		},
-		FailureInfo: &failurepb.Failure_ActivityFailureInfo{ActivityFailureInfo: &failurepb.ActivityFailureInfo{
+			}.Build(),
+		}.Build(),
+		ActivityFailureInfo: failurepb.ActivityFailureInfo_builder{
 			StartedEventId:   1,
 			ScheduledEventId: 2,
 			Identity:         "alex",
-		}},
-	}
+		}.Build(),
+	}.Build()
 
 	err := fc.FailureToError(f)
 

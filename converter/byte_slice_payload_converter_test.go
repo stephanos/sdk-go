@@ -18,8 +18,8 @@ func TestByteSliceConverter(t *testing.T) {
 	b := []byte("hello world")
 	payload, err = bc.ToPayload(b)
 	require.NoError(t, err)
-	assert.Equal(t, string(payload.Metadata[MetadataEncoding]), MetadataEncodingBinary)
-	assert.Equal(t, payload.Data, b)
+	assert.Equal(t, string(payload.GetMetadata()[MetadataEncoding]), MetadataEncodingBinary)
+	assert.Equal(t, payload.GetData(), b)
 
 	var gotBytes []byte
 	var gotInterface interface{}

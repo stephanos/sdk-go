@@ -30,9 +30,9 @@ func ExampleCodecDataConverter_compression() {
 
 	// The zlib payload is smaller
 	fmt.Printf("Uncompressed payload size: %v (encoding: %s)\n",
-		len(uncompPayload.Data), uncompPayload.Metadata[MetadataEncoding])
+		len(uncompPayload.GetData()), uncompPayload.GetMetadata()[MetadataEncoding])
 	fmt.Printf("Compressed payload size: %v (encoding: %s)\n",
-		len(compPayload.Data), compPayload.Metadata[MetadataEncoding])
+		len(compPayload.GetData()), compPayload.GetMetadata()[MetadataEncoding])
 
 	// Convert from payload and confirm the same string. This uses the same
 	// compression converter because the converter does not do anything to
@@ -70,7 +70,7 @@ func assertEncodingDataConverter(t *testing.T, data interface{}) {
 	// To/FromPayload
 	compPayload, err := zlibConv.ToPayload(data)
 	require.NoError(t, err)
-	require.Equal(t, "binary/zlib", string(compPayload.Metadata[MetadataEncoding]))
+	require.Equal(t, "binary/zlib", string(compPayload.GetMetadata()[MetadataEncoding]))
 	var newData interface{}
 	if data == nil {
 		newData = &newData
@@ -191,8 +191,8 @@ type testCodec struct {
 func (e *testCodec) Encode(payloads []*commonpb.Payload) ([]*commonpb.Payload, error) {
 	result := make([]*commonpb.Payload, len(payloads))
 	for i, p := range payloads {
-		if string(p.Metadata[MetadataEncoding]) != e.encodeFrom {
-			return payloads, fmt.Errorf("unexpected encoding: %s", p.Metadata[MetadataEncoding])
+		if string(p.GetMetadata()[MetadataEncoding]) != e.encodeFrom {
+			return payloads, fmt.Errorf("unexpected encoding: %s", p.GetMetadata()[MetadataEncoding])
 		}
 
 		b, err := proto.Marshal(p)
@@ -200,10 +200,10 @@ func (e *testCodec) Encode(payloads []*commonpb.Payload) ([]*commonpb.Payload, e
 			return payloads, err
 		}
 
-		result[i] = &commonpb.Payload{
+		result[i] = commonpb.Payload_builder{
 			Metadata: map[string][]byte{MetadataEncoding: []byte(e.encoding)},
 			Data:     b,
-		}
+		}.Build()
 	}
 
 	return result, nil
@@ -212,12 +212,12 @@ func (e *testCodec) Encode(payloads []*commonpb.Payload) ([]*commonpb.Payload, e
 func (e *testCodec) Decode(payloads []*commonpb.Payload) ([]*commonpb.Payload, error) {
 	result := make([]*commonpb.Payload, len(payloads))
 	for i, p := range payloads {
-		if string(p.Metadata[MetadataEncoding]) != e.encoding {
-			return payloads, fmt.Errorf("unexpected encoding: %s", p.Metadata[MetadataEncoding])
+		if string(p.GetMetadata()[MetadataEncoding]) != e.encoding {
+			return payloads, fmt.Errorf("unexpected encoding: %s", p.GetMetadata()[MetadataEncoding])
 		}
 
 		result[i] = &commonpb.Payload{}
-		err := proto.Unmarshal(p.Data, result[i])
+		err := proto.Unmarshal(p.GetData(), result[i])
 		if err != nil {
 			return payloads, err
 		}
@@ -286,7 +286,7 @@ func TestRawValueCodec(t *testing.T) {
 
 	compPayload, err := zlibConv.ToPayload(rawValue)
 	require.NoError(err)
-	require.Equal("binary/zlib", string(compPayload.Metadata[MetadataEncoding]))
+	require.Equal("binary/zlib", string(compPayload.GetMetadata()[MetadataEncoding]))
 	require.False(proto.Equal(rawValue.Payload(), compPayload))
 
 	newData := reflect.New(reflect.TypeOf(data)).Interface()
@@ -297,8 +297,8 @@ func TestRawValueCodec(t *testing.T) {
 	compPayloads, err := zlibConv.ToPayloads(rawValue)
 	require.NoError(err)
 
-	require.Len(compPayloads.Payloads, 1)
-	require.False(proto.Equal(rawValue.Payload(), compPayloads.Payloads[0]))
+	require.Len(compPayloads.GetPayloads(), 1)
+	require.False(proto.Equal(rawValue.Payload(), compPayloads.GetPayloads()[0]))
 
 	newData = reflect.New(reflect.TypeOf(data)).Interface()
 	require.NoError(zlibConv.FromPayloads(compPayloads, newData))

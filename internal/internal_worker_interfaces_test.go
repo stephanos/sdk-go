@@ -198,12 +198,12 @@ func (s *InterfacesTestSuite) TestInterface() {
 	}
 
 	namespaceState := enumspb.NAMESPACE_STATE_REGISTERED
-	namespaceDesc := &workflowservice.DescribeNamespaceResponse{
-		NamespaceInfo: &namespacepb.NamespaceInfo{
+	namespaceDesc := workflowservice.DescribeNamespaceResponse_builder{
+		NamespaceInfo: namespacepb.NamespaceInfo_builder{
 			Name:  namespace,
 			State: namespaceState,
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	// mocks
 	s.service.EXPECT().DescribeNamespace(gomock.Any(), gomock.Any(), gomock.Any()).Return(namespaceDesc, nil).AnyTimes()

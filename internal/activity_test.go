@@ -78,7 +78,7 @@ func (s *activityTestSuite) TestActivityHeartbeat_CancelRequested() {
 		logger:         getLogger()})
 
 	s.service.EXPECT().RecordActivityTaskHeartbeat(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(&workflowservice.RecordActivityTaskHeartbeatResponse{CancelRequested: true}, nil).Times(1)
+		Return(workflowservice.RecordActivityTaskHeartbeatResponse_builder{CancelRequested: true}.Build(), nil).Times(1)
 
 	RecordActivityHeartbeat(ctx, "testDetails")
 	<-ctx.Done()
@@ -94,7 +94,7 @@ func (s *activityTestSuite) TestActivityHeartbeat_PauseRequested() {
 		logger:         getLogger()})
 
 	s.service.EXPECT().RecordActivityTaskHeartbeat(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(&workflowservice.RecordActivityTaskHeartbeatResponse{ActivityPaused: true}, nil).Times(1)
+		Return(workflowservice.RecordActivityTaskHeartbeatResponse_builder{ActivityPaused: true}.Build(), nil).Times(1)
 
 	RecordActivityHeartbeat(ctx, "testDetails")
 	<-ctx.Done()
@@ -111,7 +111,7 @@ func (s *activityTestSuite) TestActivityHeartbeat_ResetRequested() {
 		logger:         getLogger()})
 
 	s.service.EXPECT().RecordActivityTaskHeartbeat(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(&workflowservice.RecordActivityTaskHeartbeatResponse{ActivityReset: true}, nil).Times(1)
+		Return(workflowservice.RecordActivityTaskHeartbeatResponse_builder{ActivityReset: true}.Build(), nil).Times(1)
 
 	RecordActivityHeartbeat(ctx, "testDetails")
 	<-ctx.Done()
@@ -178,7 +178,7 @@ func (s *activityTestSuite) TestActivityHeartbeat_SuppressContinousInvokes() {
 	service3.EXPECT().RecordActivityTaskHeartbeat(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(&workflowservice.RecordActivityTaskHeartbeatResponse{}, nil).
 		Do(func(ctx context.Context, request *workflowservice.RecordActivityTaskHeartbeatRequest, opts ...grpc.CallOption) {
-			ev := newEncodedValues(request.Details, nil)
+			ev := newEncodedValues(request.GetDetails(), nil)
 			var progress string
 			err := ev.Get(&progress)
 			if err != nil {
@@ -208,7 +208,7 @@ func (s *activityTestSuite) TestActivityHeartbeat_SuppressContinousInvokes() {
 	service4.EXPECT().RecordActivityTaskHeartbeat(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(&workflowservice.RecordActivityTaskHeartbeatResponse{}, nil).
 		Do(func(ctx context.Context, request *workflowservice.RecordActivityTaskHeartbeatRequest, opts ...grpc.CallOption) {
-			require.Nil(s.T(), request.Details)
+			require.Nil(s.T(), request.GetDetails())
 			waitCh2 <- struct{}{}
 		}).Times(1)
 

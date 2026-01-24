@@ -25,9 +25,10 @@
 package converter
 
 import (
+	"testing"
+
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
-	"testing"
 )
 
 func TestRawValueCompositeDataConverter(t *testing.T) {
@@ -52,8 +53,8 @@ func TestRawValueCompositeDataConverter(t *testing.T) {
 	// To/FromPayloads
 	payloads, err := defaultConv.ToPayloads(raw)
 	require.NoError(err)
-	require.Len(payloads.Payloads, 1)
-	require.True(proto.Equal(origPayload, payloads.Payloads[0]))
+	require.Len(payloads.GetPayloads(), 1)
+	require.True(proto.Equal(origPayload, payloads.GetPayloads()[0]))
 
 	err = defaultConv.FromPayloads(payloads, &decodedRV)
 	require.NoError(err)
@@ -76,7 +77,7 @@ func TestCompositeDataConverter_MixedValues(t *testing.T) {
 
 	payloads, err := defaultConv.ToPayloads(s, i, f, b, raw)
 	require.NoError(err)
-	require.Equal(5, len(payloads.Payloads))
+	require.Equal(5, len(payloads.GetPayloads()))
 
 	var outString string
 	var outInt int

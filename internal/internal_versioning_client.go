@@ -302,19 +302,19 @@ func (o *DescribeTaskQueueEnhancedOptions) validateAndConvertToProto(namespace s
 		taskQueueTypes[i] = taskQueueTypeToProto(t)
 	}
 
-	opt := &workflowservice.DescribeTaskQueueRequest{
+	opt := workflowservice.DescribeTaskQueueRequest_builder{
 		Namespace: namespace,
-		TaskQueue: &taskqueuepb.TaskQueue{
+		TaskQueue: taskqueuepb.TaskQueue_builder{
 			// Sticky queues not supported
 			Name: o.TaskQueue,
-		},
+		}.Build(),
 		ApiMode:                enumspb.DESCRIBE_TASK_QUEUE_MODE_ENHANCED,
 		Versions:               taskQueueVersionSelectionToProto(o.Versions),
 		TaskQueueTypes:         taskQueueTypes,
 		ReportPollers:          o.ReportPollers,
 		ReportTaskReachability: o.ReportTaskReachability,
 		ReportStats:            o.ReportStats,
-	}
+	}.Build()
 
 	return opt, nil
 }
@@ -337,9 +337,9 @@ func workerDeploymentPollerOptionsFromResponse(options *deployment.WorkerDeploym
 	}
 
 	return &WorkerDeploymentPollerOptions{
-		DeploymentName:       options.DeploymentName,
-		BuildID:              options.BuildId,
-		WorkerVersioningMode: WorkerVersioningMode(options.WorkerVersioningMode),
+		DeploymentName:       options.GetDeploymentName(),
+		BuildID:              options.GetBuildId(),
+		WorkerVersioningMode: WorkerVersioningMode(options.GetWorkerVersioningMode()),
 	}
 }
 
@@ -375,7 +375,7 @@ func taskQueueTypeInfoFromResponse(response *taskqueuepb.TaskQueueTypeInfo) Task
 
 	return TaskQueueTypeInfo{
 		Pollers: pollers,
-		Stats:   statsFromResponse(response.Stats),
+		Stats:   statsFromResponse(response.GetStats()),
 	}
 }
 
@@ -387,9 +387,9 @@ func statsFromResponse(stats *taskqueuepb.TaskQueueStats) *TaskQueueStats {
 	return &TaskQueueStats{
 		ApproximateBacklogCount: stats.GetApproximateBacklogCount(),
 		ApproximateBacklogAge:   stats.GetApproximateBacklogAge().AsDuration(),
-		TasksAddRate:            stats.TasksAddRate,
-		TasksDispatchRate:       stats.TasksDispatchRate,
-		BacklogIncreaseRate:     stats.TasksAddRate - stats.TasksDispatchRate,
+		TasksAddRate:            stats.GetTasksAddRate(),
+		TasksDispatchRate:       stats.GetTasksDispatchRate(),
+		BacklogIncreaseRate:     stats.GetTasksAddRate() - stats.GetTasksDispatchRate(),
 	}
 }
 
@@ -431,7 +431,7 @@ func taskQueueVersioningInfoFromResponse(info *taskqueuepb.TaskQueueVersioningIn
 	}
 	if currentVersion == nil {
 		//lint:ignore SA1019 ignore deprecated versioning APIs
-		currentVersion = workerDeploymentVersionFromString(info.CurrentVersion)
+		currentVersion = workerDeploymentVersionFromString(info.GetCurrentVersion())
 	}
 
 	var rampingVersion *WorkerDeploymentVersion
@@ -441,14 +441,14 @@ func taskQueueVersioningInfoFromResponse(info *taskqueuepb.TaskQueueVersioningIn
 	}
 	if rampingVersion == nil {
 		//lint:ignore SA1019 ignore deprecated versioning APIs
-		rampingVersion = workerDeploymentVersionFromString(info.RampingVersion)
+		rampingVersion = workerDeploymentVersionFromString(info.GetRampingVersion())
 	}
 
 	return &TaskQueueVersioningInfo{
 		CurrentVersion:           currentVersion,
 		RampingVersion:           rampingVersion,
-		RampingVersionPercentage: info.RampingVersionPercentage,
-		UpdateTime:               info.UpdateTime.AsTime(),
+		RampingVersionPercentage: info.GetRampingVersionPercentage(),
+		UpdateTime:               info.GetUpdateTime().AsTime(),
 	}
 }
 
@@ -475,11 +475,11 @@ func taskQueueVersionSelectionToProto(s *TaskQueueVersionSelection) *taskqueuepb
 		return nil
 	}
 
-	return &taskqueuepb.TaskQueueVersionSelection{
+	return taskqueuepb.TaskQueueVersionSelection_builder{
 		BuildIds:    s.BuildIDs,
 		Unversioned: s.Unversioned,
 		AllActive:   s.AllActive,
-	}
+	}.Build()
 }
 
 func taskQueueTypeToProto(t TaskQueueType) enumspb.TaskQueueType {

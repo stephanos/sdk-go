@@ -63,7 +63,7 @@ type (
 func (iter *workerDeploymentListIteratorImpl) HasNext() bool {
 	if iter.err == nil &&
 		(iter.response == nil ||
-			(iter.nextWorkerDeploymentIndex >= len(iter.response.WorkerDeployments) && len(iter.response.NextPageToken) > 0)) {
+			(iter.nextWorkerDeploymentIndex >= len(iter.response.GetWorkerDeployments()) && len(iter.response.GetNextPageToken()) > 0)) {
 		iter.response, iter.err = iter.paginate(iter.response.GetNextPageToken())
 		iter.nextWorkerDeploymentIndex = 0
 	}
@@ -77,7 +77,7 @@ func (iter *workerDeploymentListIteratorImpl) Next() (*WorkerDeploymentListEntry
 	} else if iter.err != nil {
 		return nil, iter.err
 	}
-	deployment := iter.response.WorkerDeployments[iter.nextWorkerDeploymentIndex]
+	deployment := iter.response.GetWorkerDeployments()[iter.nextWorkerDeploymentIndex]
 	iter.nextWorkerDeploymentIndex++
 	return workerDeploymentListEntryFromProto(deployment), nil
 }
@@ -90,10 +90,10 @@ func workerDeploymentRoutingConfigFromProto(routingConfig *deployment.RoutingCon
 	return WorkerDeploymentRoutingConfig{
 		CurrentVersion: workerDeploymentVersionFromProtoOrString(
 			//lint:ignore SA1019 ignore deprecated versioning APIs
-			routingConfig.CurrentDeploymentVersion, routingConfig.CurrentVersion),
+			routingConfig.GetCurrentDeploymentVersion(), routingConfig.GetCurrentVersion()),
 		RampingVersion: workerDeploymentVersionFromProtoOrString(
 			//lint:ignore SA1019 ignore deprecated versioning APIs
-			routingConfig.RampingDeploymentVersion, routingConfig.RampingVersion),
+			routingConfig.GetRampingDeploymentVersion(), routingConfig.GetRampingVersion()),
 		RampingVersionPercentage:            routingConfig.GetRampingVersionPercentage(),
 		CurrentVersionChangedTime:           safeAsTime(routingConfig.GetCurrentVersionChangedTime()),
 		RampingVersionChangedTime:           safeAsTime(routingConfig.GetRampingVersionChangedTime()),
@@ -114,7 +114,7 @@ func workerDeploymentVersionSummariesFromProto(summaries []*deployment.WorkerDep
 	for _, summary := range summaries {
 		version := workerDeploymentVersionFromProtoOrString(
 			//lint:ignore SA1019 ignore deprecated versioning APIs
-			summary.DeploymentVersion, summary.Version)
+			summary.GetDeploymentVersion(), summary.GetVersion())
 		if version == nil {
 			// Shouldn't receive any summary like this
 			continue
@@ -122,7 +122,7 @@ func workerDeploymentVersionSummariesFromProto(summaries []*deployment.WorkerDep
 
 		result = append(result, WorkerDeploymentVersionSummary{
 			Version:        *version,
-			CreateTime:     safeAsTime(summary.CreateTime),
+			CreateTime:     safeAsTime(summary.GetCreateTime()),
 			DrainageStatus: WorkerDeploymentVersionDrainageStatus(summary.GetDrainageStatus()),
 		})
 	}
@@ -135,12 +135,12 @@ func workerDeploymentInfoFromProto(info *deployment.WorkerDeploymentInfo) Worker
 	}
 
 	return WorkerDeploymentInfo{
-		Name:                 info.Name,
-		CreateTime:           safeAsTime(info.CreateTime),
-		VersionSummaries:     workerDeploymentVersionSummariesFromProto(info.VersionSummaries),
-		RoutingConfig:        workerDeploymentRoutingConfigFromProto(info.RoutingConfig),
-		LastModifierIdentity: info.LastModifierIdentity,
-		ManagerIdentity:      info.ManagerIdentity,
+		Name:                 info.GetName(),
+		CreateTime:           safeAsTime(info.GetCreateTime()),
+		VersionSummaries:     workerDeploymentVersionSummariesFromProto(info.GetVersionSummaries()),
+		RoutingConfig:        workerDeploymentRoutingConfigFromProto(info.GetRoutingConfig()),
+		LastModifierIdentity: info.GetLastModifierIdentity(),
+		ManagerIdentity:      info.GetManagerIdentity(),
 	}
 
 }
@@ -174,10 +174,10 @@ func (h *workerDeploymentHandleImpl) Describe(ctx context.Context, options Worke
 		return WorkerDeploymentDescribeResponse{}, err
 	}
 
-	request := &workflowservice.DescribeWorkerDeploymentRequest{
+	request := workflowservice.DescribeWorkerDeploymentRequest_builder{
 		Namespace:      h.workflowClient.namespace,
 		DeploymentName: h.Name,
-	}
+	}.Build()
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
 
@@ -205,7 +205,7 @@ func (h *workerDeploymentHandleImpl) SetCurrentVersion(ctx context.Context, opti
 		identity = options.Identity
 	}
 
-	request := &workflowservice.SetWorkerDeploymentCurrentVersionRequest{
+	request := workflowservice.SetWorkerDeploymentCurrentVersionRequest_builder{
 		Namespace:               h.workflowClient.namespace,
 		DeploymentName:          h.Name,
 		Version:                 h.buildIdToVersionStr(options.BuildID),
@@ -214,7 +214,7 @@ func (h *workerDeploymentHandleImpl) SetCurrentVersion(ctx context.Context, opti
 		Identity:                identity,
 		IgnoreMissingTaskQueues: options.IgnoreMissingTaskQueues,
 		AllowNoPollers:          options.AllowNoPollers,
-	}
+	}.Build()
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
 
@@ -227,7 +227,7 @@ func (h *workerDeploymentHandleImpl) SetCurrentVersion(ctx context.Context, opti
 		ConflictToken: resp.GetConflictToken(),
 		PreviousVersion: workerDeploymentVersionFromProtoOrString(
 			//lint:ignore SA1019 ignore deprecated versioning APIs
-			resp.PreviousDeploymentVersion, resp.PreviousVersion),
+			resp.GetPreviousDeploymentVersion(), resp.GetPreviousVersion()),
 	}, nil
 }
 
@@ -244,7 +244,7 @@ func (h *workerDeploymentHandleImpl) SetRampingVersion(ctx context.Context, opti
 		identity = options.Identity
 	}
 
-	request := &workflowservice.SetWorkerDeploymentRampingVersionRequest{
+	request := workflowservice.SetWorkerDeploymentRampingVersionRequest_builder{
 		Namespace:               h.workflowClient.namespace,
 		DeploymentName:          h.Name,
 		Version:                 h.buildIdToVersionStr(options.BuildID),
@@ -254,7 +254,7 @@ func (h *workerDeploymentHandleImpl) SetRampingVersion(ctx context.Context, opti
 		Identity:                identity,
 		IgnoreMissingTaskQueues: options.IgnoreMissingTaskQueues,
 		AllowNoPollers:          options.AllowNoPollers,
-	}
+	}.Build()
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
 
@@ -267,7 +267,7 @@ func (h *workerDeploymentHandleImpl) SetRampingVersion(ctx context.Context, opti
 		ConflictToken: resp.GetConflictToken(),
 		PreviousVersion: workerDeploymentVersionFromProtoOrString(
 			//lint:ignore SA1019 ignore deprecated versioning APIs
-			resp.PreviousDeploymentVersion, resp.PreviousVersion),
+			resp.GetPreviousDeploymentVersion(), resp.GetPreviousVersion()),
 		//lint:ignore SA1019 ignore deprecated versioning APIs
 		PreviousPercentage: resp.GetPreviousPercentage(),
 	}, nil
@@ -287,19 +287,19 @@ func (h *workerDeploymentHandleImpl) SetManagerIdentity(ctx context.Context, opt
 		identity = options.Identity
 	}
 
-	request := &workflowservice.SetWorkerDeploymentManagerRequest{
+	request := workflowservice.SetWorkerDeploymentManagerRequest_builder{
 		Namespace:      h.workflowClient.namespace,
 		DeploymentName: h.Name,
 		ConflictToken:  options.ConflictToken,
 		Identity:       identity,
-	}
+	}.Build()
 	if options.Self {
 		if options.ManagerIdentity != "" {
 			return WorkerDeploymentSetManagerIdentityResponse{}, fmt.Errorf("invalid input: if Self is true, ManagerIdentity must be empty but was '%s'", options.ManagerIdentity)
 		}
-		request.NewManagerIdentity = &workflowservice.SetWorkerDeploymentManagerRequest_Self{Self: true}
+		request.SetSelf(true)
 	} else {
-		request.NewManagerIdentity = &workflowservice.SetWorkerDeploymentManagerRequest_ManagerIdentity{ManagerIdentity: options.ManagerIdentity}
+		request.SetManagerIdentity(options.ManagerIdentity)
 	}
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
@@ -333,9 +333,9 @@ func workerDeploymentDrainageInfoFromProto(drainageInfo *deployment.VersionDrain
 		return nil
 	}
 	return &WorkerDeploymentVersionDrainageInfo{
-		DrainageStatus:  WorkerDeploymentVersionDrainageStatus(drainageInfo.Status),
-		LastChangedTime: safeAsTime(drainageInfo.LastChangedTime),
-		LastCheckedTime: safeAsTime(drainageInfo.LastCheckedTime),
+		DrainageStatus:  WorkerDeploymentVersionDrainageStatus(drainageInfo.GetStatus()),
+		LastChangedTime: safeAsTime(drainageInfo.GetLastChangedTime()),
+		LastCheckedTime: safeAsTime(drainageInfo.GetLastCheckedTime()),
 	}
 }
 
@@ -344,21 +344,21 @@ func workerDeploymentVersionInfoFromProto(info *deployment.WorkerDeploymentVersi
 		return WorkerDeploymentVersionInfo{}
 	}
 	//lint:ignore SA1019 ignore deprecated versioning APIs
-	version := workerDeploymentVersionFromProtoOrString(info.DeploymentVersion, info.Version)
+	version := workerDeploymentVersionFromProtoOrString(info.GetDeploymentVersion(), info.GetVersion())
 	if version == nil {
 		// Should never happen unless server is sending junk data
 		version = &WorkerDeploymentVersion{}
 	}
 	return WorkerDeploymentVersionInfo{
 		Version:            *version,
-		CreateTime:         safeAsTime(info.CreateTime),
-		RoutingChangedTime: safeAsTime(info.RoutingChangedTime),
-		CurrentSinceTime:   safeAsTime(info.CurrentSinceTime),
-		RampingSinceTime:   safeAsTime(info.RampingSinceTime),
-		RampPercentage:     info.RampPercentage,
-		TaskQueuesInfos:    workerDeploymentTaskQueuesInfosFromProto(info.TaskQueueInfos),
-		DrainageInfo:       workerDeploymentDrainageInfoFromProto(info.DrainageInfo),
-		Metadata:           info.Metadata.GetEntries(),
+		CreateTime:         safeAsTime(info.GetCreateTime()),
+		RoutingChangedTime: safeAsTime(info.GetRoutingChangedTime()),
+		CurrentSinceTime:   safeAsTime(info.GetCurrentSinceTime()),
+		RampingSinceTime:   safeAsTime(info.GetRampingSinceTime()),
+		RampPercentage:     info.GetRampPercentage(),
+		TaskQueuesInfos:    workerDeploymentTaskQueuesInfosFromProto(info.GetTaskQueueInfos()),
+		DrainageInfo:       workerDeploymentDrainageInfoFromProto(info.GetDrainageInfo()),
+		Metadata:           info.GetMetadata().GetEntries(),
 	}
 }
 
@@ -374,14 +374,14 @@ func (h *workerDeploymentHandleImpl) DescribeVersion(ctx context.Context, option
 		return WorkerDeploymentVersionDescription{}, err
 	}
 
-	request := &workflowservice.DescribeWorkerDeploymentVersionRequest{
+	request := workflowservice.DescribeWorkerDeploymentVersionRequest_builder{
 		Namespace: h.workflowClient.namespace,
 		Version:   h.buildIdToVersionStr(options.BuildID),
-		DeploymentVersion: &deployment.WorkerDeploymentVersion{
+		DeploymentVersion: deployment.WorkerDeploymentVersion_builder{
 			BuildId:        options.BuildID,
 			DeploymentName: h.Name,
-		},
-	}
+		}.Build(),
+	}.Build()
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
 
@@ -411,16 +411,16 @@ func (h *workerDeploymentHandleImpl) DeleteVersion(ctx context.Context, options 
 		identity = options.Identity
 	}
 
-	request := &workflowservice.DeleteWorkerDeploymentVersionRequest{
+	request := workflowservice.DeleteWorkerDeploymentVersionRequest_builder{
 		Namespace: h.workflowClient.namespace,
 		Version:   h.buildIdToVersionStr(options.BuildID),
-		DeploymentVersion: &deployment.WorkerDeploymentVersion{
+		DeploymentVersion: deployment.WorkerDeploymentVersion_builder{
 			BuildId:        options.BuildID,
 			DeploymentName: h.Name,
-		},
+		}.Build(),
 		SkipDrainage: options.SkipDrainage,
 		Identity:     identity,
-	}
+	}.Build()
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
 
@@ -465,13 +465,13 @@ func (h *workerDeploymentHandleImpl) UpdateVersionMetadata(ctx context.Context, 
 		return WorkerDeploymentUpdateVersionMetadataResponse{}, err
 	}
 
-	request := &workflowservice.UpdateWorkerDeploymentVersionMetadataRequest{
+	request := workflowservice.UpdateWorkerDeploymentVersionMetadataRequest_builder{
 		Namespace:         h.workflowClient.namespace,
 		Version:           options.Version.toCanonicalString(),
 		DeploymentVersion: options.Version.toProto(),
 		UpsertEntries:     workerDeploymentUpsertEntriesMetadataToProto(h.workflowClient.dataConverter, options.MetadataUpdate),
 		RemoveEntries:     options.MetadataUpdate.RemoveEntries,
-	}
+	}.Build()
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
 
@@ -495,11 +495,11 @@ func (wdc *workerDeploymentClient) List(ctx context.Context, options WorkerDeplo
 		}
 		grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 		defer cancel()
-		request := &workflowservice.ListWorkerDeploymentsRequest{
+		request := workflowservice.ListWorkerDeploymentsRequest_builder{
 			Namespace:     wdc.workflowClient.namespace,
 			PageSize:      int32(options.PageSize),
 			NextPageToken: nextToken,
-		}
+		}.Build()
 
 		return wdc.workflowClient.workflowService.ListWorkerDeployments(grpcCtx, request)
 	}
@@ -525,11 +525,11 @@ func (wdc *workerDeploymentClient) Delete(ctx context.Context, options WorkerDep
 		identity = options.Identity
 	}
 
-	request := &workflowservice.DeleteWorkerDeploymentRequest{
+	request := workflowservice.DeleteWorkerDeploymentRequest_builder{
 		Namespace:      wdc.workflowClient.namespace,
 		DeploymentName: options.Name,
 		Identity:       identity,
-	}
+	}.Build()
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
 

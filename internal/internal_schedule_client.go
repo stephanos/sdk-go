@@ -82,9 +82,9 @@ func (w *workflowClientInterceptor) CreateSchedule(ctx context.Context, in *Sche
 
 	var triggerImmediately *schedulepb.TriggerImmediatelyRequest
 	if in.Options.TriggerImmediately {
-		triggerImmediately = &schedulepb.TriggerImmediatelyRequest{
+		triggerImmediately = schedulepb.TriggerImmediatelyRequest_builder{
 			OverlapPolicy: in.Options.Overlap,
-		}
+		}.Build()
 	}
 
 	backfillRequests := convertToPBBackfillList(in.Options.ScheduleBackfill)
@@ -92,10 +92,10 @@ func (w *workflowClientInterceptor) CreateSchedule(ctx context.Context, in *Sche
 	// Only send an initial patch if we need to.
 	var initialPatch *schedulepb.SchedulePatch
 	if in.Options.TriggerImmediately || len(in.Options.ScheduleBackfill) > 0 {
-		initialPatch = &schedulepb.SchedulePatch{
+		initialPatch = schedulepb.SchedulePatch_builder{
 			TriggerImmediately: triggerImmediately,
 			BackfillRequest:    backfillRequests,
-		}
+		}.Build()
 	}
 
 	var catchupWindow *durationpb.Duration
@@ -106,30 +106,30 @@ func (w *workflowClientInterceptor) CreateSchedule(ctx context.Context, in *Sche
 	}
 
 	// run propagators to extract information about tracing and other stuff, store in headers field
-	startRequest := &workflowservice.CreateScheduleRequest{
+	startRequest := workflowservice.CreateScheduleRequest_builder{
 		Namespace:  w.client.namespace,
 		ScheduleId: ID,
 		RequestId:  uuid.NewString(),
-		Schedule: &schedulepb.Schedule{
+		Schedule: schedulepb.Schedule_builder{
 			Spec:   convertToPBScheduleSpec(&in.Options.Spec),
 			Action: action,
-			Policies: &schedulepb.SchedulePolicies{
+			Policies: schedulepb.SchedulePolicies_builder{
 				OverlapPolicy:  in.Options.Overlap,
 				CatchupWindow:  catchupWindow,
 				PauseOnFailure: in.Options.PauseOnFailure,
-			},
-			State: &schedulepb.ScheduleState{
+			}.Build(),
+			State: schedulepb.ScheduleState_builder{
 				Notes:            in.Options.Note,
 				Paused:           in.Options.Paused,
 				LimitedActions:   in.Options.RemainingActions != 0,
 				RemainingActions: int64(in.Options.RemainingActions),
-			},
-		},
+			}.Build(),
+		}.Build(),
 		InitialPatch:     initialPatch,
 		Identity:         w.client.identity,
 		Memo:             memo,
 		SearchAttributes: searchAttr,
-	}
+	}.Build()
 
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
@@ -173,12 +173,12 @@ func (sc *scheduleClient) List(ctx context.Context, options ScheduleListOptions)
 	paginate := func(nextToken []byte) (*workflowservice.ListSchedulesResponse, error) {
 		grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 		defer cancel()
-		request := &workflowservice.ListSchedulesRequest{
+		request := workflowservice.ListSchedulesRequest_builder{
 			Namespace:       sc.workflowClient.namespace,
 			MaximumPageSize: int32(options.PageSize),
 			NextPageToken:   nextToken,
 			Query:           options.Query,
-		}
+		}.Build()
 
 		return sc.workflowClient.workflowService.ListSchedules(grpcCtx, request)
 	}
@@ -191,7 +191,7 @@ func (sc *scheduleClient) List(ctx context.Context, options ScheduleListOptions)
 func (iter *scheduleListIteratorImpl) HasNext() bool {
 	if iter.err == nil {
 		if iter.response == nil ||
-			(iter.nextScheduleIndex >= len(iter.response.Schedules) && len(iter.response.NextPageToken) > 0) {
+			(iter.nextScheduleIndex >= len(iter.response.GetSchedules()) && len(iter.response.GetNextPageToken()) > 0) {
 			iter.response, iter.err = iter.paginate(iter.response.GetNextPageToken())
 			iter.nextScheduleIndex = 0
 		}
@@ -205,7 +205,7 @@ func (iter *scheduleListIteratorImpl) Next() (*ScheduleListEntry, error) {
 	} else if iter.err != nil {
 		return nil, iter.err
 	}
-	schedule := iter.response.Schedules[iter.nextScheduleIndex]
+	schedule := iter.response.GetSchedules()[iter.nextScheduleIndex]
 	iter.nextScheduleIndex++
 	return convertFromPBScheduleListEntry(schedule), nil
 }
@@ -215,11 +215,11 @@ func (scheduleHandle *scheduleHandleImpl) GetID() string {
 }
 
 func (scheduleHandle *scheduleHandleImpl) Delete(ctx context.Context) error {
-	request := &workflowservice.DeleteScheduleRequest{
+	request := workflowservice.DeleteScheduleRequest_builder{
 		Namespace:  scheduleHandle.client.namespace,
 		ScheduleId: scheduleHandle.ID,
 		Identity:   scheduleHandle.client.identity,
-	}
+	}.Build()
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
 	_, err := scheduleHandle.client.workflowService.DeleteSchedule(grpcCtx, request)
@@ -227,15 +227,15 @@ func (scheduleHandle *scheduleHandleImpl) Delete(ctx context.Context) error {
 }
 
 func (scheduleHandle *scheduleHandleImpl) Backfill(ctx context.Context, options ScheduleBackfillOptions) error {
-	request := &workflowservice.PatchScheduleRequest{
+	request := workflowservice.PatchScheduleRequest_builder{
 		Namespace:  scheduleHandle.client.namespace,
 		ScheduleId: scheduleHandle.ID,
-		Patch: &schedulepb.SchedulePatch{
+		Patch: schedulepb.SchedulePatch_builder{
 			BackfillRequest: convertToPBBackfillList(options.Backfill),
-		},
+		}.Build(),
 		Identity:  scheduleHandle.client.identity,
 		RequestId: uuid.NewString(),
-	}
+	}.Build()
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
 	_, err := scheduleHandle.client.workflowService.PatchSchedule(grpcCtx, request)
@@ -247,10 +247,10 @@ func (scheduleHandle *scheduleHandleImpl) Update(ctx context.Context, options Sc
 	defer cancel()
 	ctx = contextWithNewHeader(ctx)
 
-	describeRequest := &workflowservice.DescribeScheduleRequest{
+	describeRequest := workflowservice.DescribeScheduleRequest_builder{
 		Namespace:  scheduleHandle.client.namespace,
 		ScheduleId: scheduleHandle.ID,
-	}
+	}.Build()
 	describeResponse, err := scheduleHandle.client.workflowService.DescribeSchedule(grpcCtx, describeRequest)
 	if err != nil {
 		return err
@@ -283,7 +283,7 @@ func (scheduleHandle *scheduleHandleImpl) Update(ctx context.Context, options Sc
 		}
 	}
 
-	_, err = scheduleHandle.client.workflowService.UpdateSchedule(grpcCtx, &workflowservice.UpdateScheduleRequest{
+	_, err = scheduleHandle.client.workflowService.UpdateSchedule(grpcCtx, workflowservice.UpdateScheduleRequest_builder{
 		Namespace:        scheduleHandle.client.namespace,
 		ScheduleId:       scheduleHandle.ID,
 		Schedule:         newSchedulePB,
@@ -291,15 +291,15 @@ func (scheduleHandle *scheduleHandleImpl) Update(ctx context.Context, options Sc
 		Identity:         scheduleHandle.client.identity,
 		RequestId:        uuid.NewString(),
 		SearchAttributes: newSA,
-	})
+	}.Build())
 	return err
 }
 
 func (scheduleHandle *scheduleHandleImpl) Describe(ctx context.Context) (*ScheduleDescription, error) {
-	request := &workflowservice.DescribeScheduleRequest{
+	request := workflowservice.DescribeScheduleRequest_builder{
 		Namespace:  scheduleHandle.client.namespace,
 		ScheduleId: scheduleHandle.ID,
-	}
+	}.Build()
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
 	describeResponse, err := scheduleHandle.client.workflowService.DescribeSchedule(grpcCtx, request)
@@ -311,17 +311,17 @@ func (scheduleHandle *scheduleHandleImpl) Describe(ctx context.Context) (*Schedu
 }
 
 func (scheduleHandle *scheduleHandleImpl) Trigger(ctx context.Context, options ScheduleTriggerOptions) error {
-	request := &workflowservice.PatchScheduleRequest{
+	request := workflowservice.PatchScheduleRequest_builder{
 		Namespace:  scheduleHandle.client.namespace,
 		ScheduleId: scheduleHandle.ID,
-		Patch: &schedulepb.SchedulePatch{
-			TriggerImmediately: &schedulepb.TriggerImmediatelyRequest{
+		Patch: schedulepb.SchedulePatch_builder{
+			TriggerImmediately: schedulepb.TriggerImmediatelyRequest_builder{
 				OverlapPolicy: options.Overlap,
-			},
-		},
+			}.Build(),
+		}.Build(),
 		Identity:  scheduleHandle.client.identity,
 		RequestId: uuid.NewString(),
-	}
+	}.Build()
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
 	_, err := scheduleHandle.client.workflowService.PatchSchedule(grpcCtx, request)
@@ -333,15 +333,15 @@ func (scheduleHandle *scheduleHandleImpl) Pause(ctx context.Context, options Sch
 	if options.Note != "" {
 		pauseNote = options.Note
 	}
-	request := &workflowservice.PatchScheduleRequest{
+	request := workflowservice.PatchScheduleRequest_builder{
 		Namespace:  scheduleHandle.client.namespace,
 		ScheduleId: scheduleHandle.ID,
-		Patch: &schedulepb.SchedulePatch{
+		Patch: schedulepb.SchedulePatch_builder{
 			Pause: pauseNote,
-		},
+		}.Build(),
 		Identity:  scheduleHandle.client.identity,
 		RequestId: uuid.NewString(),
-	}
+	}.Build()
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
 	_, err := scheduleHandle.client.workflowService.PatchSchedule(grpcCtx, request)
@@ -353,15 +353,15 @@ func (scheduleHandle *scheduleHandleImpl) Unpause(ctx context.Context, options S
 	if options.Note != "" {
 		unpauseNote = options.Note
 	}
-	request := &workflowservice.PatchScheduleRequest{
+	request := workflowservice.PatchScheduleRequest_builder{
 		Namespace:  scheduleHandle.client.namespace,
 		ScheduleId: scheduleHandle.ID,
-		Patch: &schedulepb.SchedulePatch{
+		Patch: schedulepb.SchedulePatch_builder{
 			Unpause: unpauseNote,
-		},
+		}.Build(),
 		Identity:  scheduleHandle.client.identity,
 		RequestId: uuid.NewString(),
-	}
+	}.Build()
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
 	_, err := scheduleHandle.client.workflowService.PatchSchedule(grpcCtx, request)
@@ -378,10 +378,10 @@ func convertToPBScheduleSpec(scheduleSpec *ScheduleSpec) *schedulepb.ScheduleSpe
 	intervals := make([]*schedulepb.IntervalSpec, len(scheduleSpec.Intervals))
 	for i, interval := range scheduleSpec.Intervals {
 		intervalSpec := interval
-		intervals[i] = &schedulepb.IntervalSpec{
+		intervals[i] = schedulepb.IntervalSpec_builder{
 			Interval: durationpb.New(intervalSpec.Every),
 			Phase:    durationpb.New(intervalSpec.Offset),
-		}
+		}.Build()
 	}
 
 	skip := convertToPBScheduleCalendarSpecList(scheduleSpec.Skip)
@@ -396,7 +396,7 @@ func convertToPBScheduleSpec(scheduleSpec *ScheduleSpec) *schedulepb.ScheduleSpe
 		endTime = timestamppb.New(scheduleSpec.EndAt)
 	}
 
-	return &schedulepb.ScheduleSpec{
+	return schedulepb.ScheduleSpec_builder{
 		StructuredCalendar:        calendar,
 		Interval:                  intervals,
 		CronString:                scheduleSpec.CronExpressions,
@@ -406,7 +406,7 @@ func convertToPBScheduleSpec(scheduleSpec *ScheduleSpec) *schedulepb.ScheduleSpe
 		Jitter:                    durationpb.New(scheduleSpec.Jitter),
 		// TODO support custom time zone data
 		TimezoneName: scheduleSpec.TimeZoneName,
-	}
+	}.Build()
 }
 
 func convertFromPBScheduleSpec(scheduleSpec *schedulepb.ScheduleSpec) *ScheduleSpec {
@@ -419,8 +419,8 @@ func convertFromPBScheduleSpec(scheduleSpec *schedulepb.ScheduleSpec) *ScheduleS
 	intervals := make([]ScheduleIntervalSpec, len(scheduleSpec.GetInterval()))
 	for i, s := range scheduleSpec.GetInterval() {
 		intervals[i] = ScheduleIntervalSpec{
-			Every:  s.Interval.AsDuration(),
-			Offset: s.Phase.AsDuration(),
+			Every:  s.GetInterval().AsDuration(),
+			Offset: s.GetPhase().AsDuration(),
 		}
 	}
 
@@ -456,59 +456,59 @@ func scheduleDescriptionFromPB(
 		return nil, nil
 	}
 
-	runningWorkflows := make([]ScheduleWorkflowExecution, len(describeResponse.Info.GetRunningWorkflows()))
-	for i, s := range describeResponse.Info.GetRunningWorkflows() {
+	runningWorkflows := make([]ScheduleWorkflowExecution, len(describeResponse.GetInfo().GetRunningWorkflows()))
+	for i, s := range describeResponse.GetInfo().GetRunningWorkflows() {
 		runningWorkflows[i] = ScheduleWorkflowExecution{
 			WorkflowID:          s.GetWorkflowId(),
 			FirstExecutionRunID: s.GetRunId(),
 		}
 	}
 
-	recentActions := convertFromPBScheduleActionResultList(describeResponse.Info.GetRecentActions())
+	recentActions := convertFromPBScheduleActionResultList(describeResponse.GetInfo().GetRecentActions())
 
-	nextActionTimes := make([]time.Time, len(describeResponse.Info.GetFutureActionTimes()))
-	for i, t := range describeResponse.Info.GetFutureActionTimes() {
+	nextActionTimes := make([]time.Time, len(describeResponse.GetInfo().GetFutureActionTimes()))
+	for i, t := range describeResponse.GetInfo().GetFutureActionTimes() {
 		nextActionTimes[i] = t.AsTime()
 	}
 
-	actionDescription, err := convertFromPBScheduleAction(logger, dc, describeResponse.Schedule.Action)
+	actionDescription, err := convertFromPBScheduleAction(logger, dc, describeResponse.GetSchedule().GetAction())
 	if err != nil {
 		return nil, err
 	}
 
 	var typedSearchAttributes SearchAttributes
-	searchAttributes := describeResponse.SearchAttributes
+	searchAttributes := describeResponse.GetSearchAttributes()
 	if searchAttributes != nil {
-		typedSearchAttributes = convertToTypedSearchAttributes(logger, searchAttributes.IndexedFields)
+		typedSearchAttributes = convertToTypedSearchAttributes(logger, searchAttributes.GetIndexedFields())
 	}
 
 	return &ScheduleDescription{
 		Schedule: Schedule{
 			Action: actionDescription,
-			Spec:   convertFromPBScheduleSpec(describeResponse.Schedule.Spec),
+			Spec:   convertFromPBScheduleSpec(describeResponse.GetSchedule().GetSpec()),
 			Policy: &SchedulePolicies{
-				Overlap:        describeResponse.Schedule.Policies.GetOverlapPolicy(),
-				CatchupWindow:  describeResponse.Schedule.Policies.GetCatchupWindow().AsDuration(),
-				PauseOnFailure: describeResponse.Schedule.Policies.GetPauseOnFailure(),
+				Overlap:        describeResponse.GetSchedule().GetPolicies().GetOverlapPolicy(),
+				CatchupWindow:  describeResponse.GetSchedule().GetPolicies().GetCatchupWindow().AsDuration(),
+				PauseOnFailure: describeResponse.GetSchedule().GetPolicies().GetPauseOnFailure(),
 			},
 			State: &ScheduleState{
-				Note:             describeResponse.Schedule.State.GetNotes(),
-				Paused:           describeResponse.Schedule.State.GetPaused(),
-				LimitedActions:   describeResponse.Schedule.State.GetLimitedActions(),
-				RemainingActions: int(describeResponse.Schedule.State.GetRemainingActions()),
+				Note:             describeResponse.GetSchedule().GetState().GetNotes(),
+				Paused:           describeResponse.GetSchedule().GetState().GetPaused(),
+				LimitedActions:   describeResponse.GetSchedule().GetState().GetLimitedActions(),
+				RemainingActions: int(describeResponse.GetSchedule().GetState().GetRemainingActions()),
 			},
 		},
 		Info: ScheduleInfo{
-			NumActions:                    int(describeResponse.Info.ActionCount),
-			NumActionsMissedCatchupWindow: int(describeResponse.Info.MissedCatchupWindow),
-			NumActionsSkippedOverlap:      int(describeResponse.Info.OverlapSkipped),
+			NumActions:                    int(describeResponse.GetInfo().GetActionCount()),
+			NumActionsMissedCatchupWindow: int(describeResponse.GetInfo().GetMissedCatchupWindow()),
+			NumActionsSkippedOverlap:      int(describeResponse.GetInfo().GetOverlapSkipped()),
 			RunningWorkflows:              runningWorkflows,
 			RecentActions:                 recentActions,
 			NextActionTimes:               nextActionTimes,
-			CreatedAt:                     describeResponse.Info.GetCreateTime().AsTime(),
-			LastUpdateAt:                  describeResponse.Info.GetUpdateTime().AsTime(),
+			CreatedAt:                     describeResponse.GetInfo().GetCreateTime().AsTime(),
+			LastUpdateAt:                  describeResponse.GetInfo().GetUpdateTime().AsTime(),
 		},
-		Memo:                  describeResponse.Memo,
+		Memo:                  describeResponse.GetMemo(),
 		SearchAttributes:      searchAttributes,
 		TypedSearchAttributes: typedSearchAttributes,
 	}, nil
@@ -529,21 +529,21 @@ func convertToPBSchedule(ctx context.Context, client *WorkflowClient, schedule *
 		catchupWindow = durationpb.New(schedule.Policy.CatchupWindow)
 	}
 
-	return &schedulepb.Schedule{
+	return schedulepb.Schedule_builder{
 		Spec:   convertToPBScheduleSpec(schedule.Spec),
 		Action: action,
-		Policies: &schedulepb.SchedulePolicies{
+		Policies: schedulepb.SchedulePolicies_builder{
 			OverlapPolicy:  schedule.Policy.Overlap,
 			CatchupWindow:  catchupWindow,
 			PauseOnFailure: schedule.Policy.PauseOnFailure,
-		},
-		State: &schedulepb.ScheduleState{
+		}.Build(),
+		State: schedulepb.ScheduleState_builder{
 			Notes:            schedule.State.Note,
 			Paused:           schedule.State.Paused,
 			LimitedActions:   schedule.State.LimitedActions,
 			RemainingActions: int64(schedule.State.RemainingActions),
-		},
-	}, nil
+		}.Build(),
+	}.Build(), nil
 }
 
 func convertFromPBScheduleListEntry(schedule *schedulepb.ScheduleListEntry) *ScheduleListEntry {
@@ -551,13 +551,13 @@ func convertFromPBScheduleListEntry(schedule *schedulepb.ScheduleListEntry) *Sch
 
 	recentActions := convertFromPBScheduleActionResultList(scheduleInfo.GetRecentActions())
 
-	nextActionTimes := make([]time.Time, len(schedule.Info.GetFutureActionTimes()))
-	for i, t := range schedule.Info.GetFutureActionTimes() {
+	nextActionTimes := make([]time.Time, len(schedule.GetInfo().GetFutureActionTimes()))
+	for i, t := range schedule.GetInfo().GetFutureActionTimes() {
 		nextActionTimes[i] = t.AsTime()
 	}
 
 	return &ScheduleListEntry{
-		ID:     schedule.ScheduleId,
+		ID:     schedule.GetScheduleId(),
 		Spec:   convertFromPBScheduleSpec(scheduleInfo.GetSpec()),
 		Note:   scheduleInfo.GetNotes(),
 		Paused: scheduleInfo.GetPaused(),
@@ -566,8 +566,8 @@ func convertFromPBScheduleListEntry(schedule *schedulepb.ScheduleListEntry) *Sch
 		},
 		RecentActions:    recentActions,
 		NextActionTimes:  nextActionTimes,
-		Memo:             schedule.Memo,
-		SearchAttributes: schedule.SearchAttributes,
+		Memo:             schedule.GetMemo(),
+		SearchAttributes: schedule.GetSearchAttributes(),
 	}
 }
 
@@ -612,10 +612,10 @@ func convertToPBScheduleAction(
 		// Add any untyped search attributes that aren't already there
 		for k, v := range action.UntypedSearchAttributes {
 			if searchAttrs.GetIndexedFields()[k] == nil {
-				if searchAttrs == nil || searchAttrs.IndexedFields == nil {
-					searchAttrs = &commonpb.SearchAttributes{IndexedFields: map[string]*commonpb.Payload{}}
+				if searchAttrs == nil || searchAttrs.GetIndexedFields() == nil {
+					searchAttrs = commonpb.SearchAttributes_builder{IndexedFields: map[string]*commonpb.Payload{}}.Build()
 				}
-				searchAttrs.IndexedFields[k] = v
+				searchAttrs.GetIndexedFields()[k] = v
 			}
 		}
 
@@ -630,26 +630,24 @@ func convertToPBScheduleAction(
 			return nil, err
 		}
 
-		return &schedulepb.ScheduleAction{
-			Action: &schedulepb.ScheduleAction_StartWorkflow{
-				StartWorkflow: &workflowpb.NewWorkflowExecutionInfo{
-					WorkflowId:               action.ID,
-					WorkflowType:             &commonpb.WorkflowType{Name: workflowType},
-					TaskQueue:                &taskqueuepb.TaskQueue{Name: action.TaskQueue, Kind: enumspb.TASK_QUEUE_KIND_NORMAL},
-					Input:                    input,
-					WorkflowExecutionTimeout: durationpb.New(action.WorkflowExecutionTimeout),
-					WorkflowRunTimeout:       durationpb.New(action.WorkflowRunTimeout),
-					WorkflowTaskTimeout:      durationpb.New(action.WorkflowTaskTimeout),
-					RetryPolicy:              convertToPBRetryPolicy(action.RetryPolicy),
-					Memo:                     memo,
-					SearchAttributes:         searchAttrs,
-					Header:                   header,
-					UserMetadata:             userMetadata,
-					VersioningOverride:       versioningOverrideToProto(action.VersioningOverride),
-					Priority:                 convertToPBPriority(action.Priority),
-				},
-			},
-		}, nil
+		return schedulepb.ScheduleAction_builder{
+			StartWorkflow: workflowpb.NewWorkflowExecutionInfo_builder{
+				WorkflowId:               action.ID,
+				WorkflowType:             commonpb.WorkflowType_builder{Name: workflowType}.Build(),
+				TaskQueue:                taskqueuepb.TaskQueue_builder{Name: action.TaskQueue, Kind: enumspb.TASK_QUEUE_KIND_NORMAL}.Build(),
+				Input:                    input,
+				WorkflowExecutionTimeout: durationpb.New(action.WorkflowExecutionTimeout),
+				WorkflowRunTimeout:       durationpb.New(action.WorkflowRunTimeout),
+				WorkflowTaskTimeout:      durationpb.New(action.WorkflowTaskTimeout),
+				RetryPolicy:              convertToPBRetryPolicy(action.RetryPolicy),
+				Memo:                     memo,
+				SearchAttributes:         searchAttrs,
+				Header:                   header,
+				UserMetadata:             userMetadata,
+				VersioningOverride:       versioningOverrideToProto(action.VersioningOverride),
+				Priority:                 convertToPBPriority(action.Priority),
+			}.Build(),
+		}.Build(), nil
 	default:
 		// TODO maybe just panic instead?
 		return nil, fmt.Errorf("could not parse ScheduleAction")
@@ -661,9 +659,9 @@ func convertFromPBScheduleAction(
 	dc converter.DataConverter,
 	action *schedulepb.ScheduleAction,
 ) (ScheduleAction, error) {
-	switch action := action.Action.(type) {
-	case *schedulepb.ScheduleAction_StartWorkflow:
-		workflow := action.StartWorkflow
+	switch action.WhichAction() {
+	case schedulepb.ScheduleAction_StartWorkflow_case:
+		workflow := action.GetStartWorkflow()
 
 		args := make([]interface{}, len(workflow.GetInput().GetPayloads()))
 		for i, p := range workflow.GetInput().GetPayloads() {
@@ -709,17 +707,17 @@ func convertFromPBScheduleAction(
 
 		return &ScheduleWorkflowAction{
 			ID:                       workflow.GetWorkflowId(),
-			Workflow:                 workflow.WorkflowType.GetName(),
+			Workflow:                 workflow.GetWorkflowType().GetName(),
 			Args:                     args,
-			TaskQueue:                workflow.TaskQueue.GetName(),
+			TaskQueue:                workflow.GetTaskQueue().GetName(),
 			WorkflowExecutionTimeout: workflow.GetWorkflowExecutionTimeout().AsDuration(),
 			WorkflowRunTimeout:       workflow.GetWorkflowRunTimeout().AsDuration(),
 			WorkflowTaskTimeout:      workflow.GetWorkflowTaskTimeout().AsDuration(),
-			RetryPolicy:              convertFromPBRetryPolicy(workflow.RetryPolicy),
+			RetryPolicy:              convertFromPBRetryPolicy(workflow.GetRetryPolicy()),
 			Memo:                     memos,
 			TypedSearchAttributes:    searchAttrs,
 			UntypedSearchAttributes:  untypedSearchAttrs,
-			VersioningOverride:       versioningOverrideFromProto(workflow.VersioningOverride),
+			VersioningOverride:       versioningOverrideFromProto(workflow.GetVersioningOverride()),
 			StaticSummary:            *convertedSummary,
 			StaticDetails:            *convertedDetails,
 		}, nil
@@ -733,11 +731,11 @@ func convertToPBBackfillList(backfillRequests []ScheduleBackfill) []*schedulepb.
 	backfillRequestsPB := make([]*schedulepb.BackfillRequest, len(backfillRequests))
 	for i, b := range backfillRequests {
 		backfill := b
-		backfillRequestsPB[i] = &schedulepb.BackfillRequest{
+		backfillRequestsPB[i] = schedulepb.BackfillRequest_builder{
 			StartTime:     timestamppb.New(backfill.Start),
 			EndTime:       timestamppb.New(backfill.End),
 			OverlapPolicy: backfill.Overlap,
-		}
+		}.Build()
 	}
 	return backfillRequestsPB
 }
@@ -745,11 +743,11 @@ func convertToPBBackfillList(backfillRequests []ScheduleBackfill) []*schedulepb.
 func convertToPBRangeList(scheduleRange []ScheduleRange) []*schedulepb.Range {
 	rangesPB := make([]*schedulepb.Range, len(scheduleRange))
 	for i, r := range scheduleRange {
-		rangesPB[i] = &schedulepb.Range{
+		rangesPB[i] = schedulepb.Range_builder{
 			Start: int32(r.Start),
 			End:   int32(r.End),
 			Step:  int32(r.Step),
-		}
+		}.Build()
 	}
 	return rangesPB
 }
@@ -761,9 +759,9 @@ func convertFromPBRangeList(scheduleRangePB []*schedulepb.Range) []ScheduleRange
 			continue
 		}
 		scheduleRange[i] = ScheduleRange{
-			Start: int(r.Start),
-			End:   int(r.End),
-			Step:  int(r.Step),
+			Start: int(r.GetStart()),
+			End:   int(r.GetEnd()),
+			Step:  int(r.GetStep()),
 		}
 	}
 	return scheduleRange
@@ -773,14 +771,14 @@ func convertFromPBScheduleCalendarSpecList(calendarSpecPB []*schedulepb.Structur
 	calendarSpec := make([]ScheduleCalendarSpec, len(calendarSpecPB))
 	for i, e := range calendarSpecPB {
 		calendarSpec[i] = ScheduleCalendarSpec{
-			Second:     convertFromPBRangeList(e.Second),
-			Minute:     convertFromPBRangeList(e.Minute),
-			Hour:       convertFromPBRangeList(e.Hour),
-			DayOfMonth: convertFromPBRangeList(e.DayOfMonth),
-			Month:      convertFromPBRangeList(e.Month),
-			Year:       convertFromPBRangeList(e.Year),
-			DayOfWeek:  convertFromPBRangeList(e.DayOfWeek),
-			Comment:    e.Comment,
+			Second:     convertFromPBRangeList(e.GetSecond()),
+			Minute:     convertFromPBRangeList(e.GetMinute()),
+			Hour:       convertFromPBRangeList(e.GetHour()),
+			DayOfMonth: convertFromPBRangeList(e.GetDayOfMonth()),
+			Month:      convertFromPBRangeList(e.GetMonth()),
+			Year:       convertFromPBRangeList(e.GetYear()),
+			DayOfWeek:  convertFromPBRangeList(e.GetDayOfWeek()),
+			Comment:    e.GetComment(),
 		}
 	}
 	return calendarSpec
@@ -817,7 +815,7 @@ func convertToPBScheduleCalendarSpecList(calendarSpec []ScheduleCalendarSpec) []
 	for i, e := range calendarSpec {
 		applyScheduleCalendarSpecDefault(&e)
 
-		calendarSpecPB[i] = &schedulepb.StructuredCalendarSpec{
+		calendarSpecPB[i] = schedulepb.StructuredCalendarSpec_builder{
 			Second:     convertToPBRangeList(e.Second),
 			Minute:     convertToPBRangeList(e.Minute),
 			Hour:       convertToPBRangeList(e.Hour),
@@ -826,7 +824,7 @@ func convertToPBScheduleCalendarSpecList(calendarSpec []ScheduleCalendarSpec) []
 			Year:       convertToPBRangeList(e.Year),
 			DayOfWeek:  convertToPBRangeList(e.DayOfWeek),
 			Comment:    e.Comment,
-		}
+		}.Build()
 	}
 	return calendarSpecPB
 }
@@ -864,9 +862,9 @@ func encodeScheduleWorklowArgs(dc converter.DataConverter, args []interface{}) (
 			payloads[i] = payload
 		}
 	}
-	return &commonpb.Payloads{
+	return commonpb.Payloads_builder{
 		Payloads: payloads,
-	}, nil
+	}.Build(), nil
 }
 
 func encodeScheduleWorkflowMemo(dc converter.DataConverter, input map[string]interface{}) (*commonpb.Memo, error) {
@@ -886,5 +884,5 @@ func encodeScheduleWorkflowMemo(dc converter.DataConverter, input map[string]int
 			memo[k] = memoBytes
 		}
 	}
-	return &commonpb.Memo{Fields: memo}, nil
+	return commonpb.Memo_builder{Fields: memo}.Build(), nil
 }

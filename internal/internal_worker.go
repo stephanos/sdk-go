@@ -291,7 +291,7 @@ func verifyNamespaceExist(
 	}
 	grpcCtx, cancel := newGRPCContext(ctx, grpcMetricsHandler(metricsHandler), defaultGrpcRetryParameters(ctx))
 	defer cancel()
-	_, err := client.DescribeNamespace(grpcCtx, &workflowservice.DescribeNamespaceRequest{Namespace: namespace})
+	_, err := client.DescribeNamespace(grpcCtx, workflowservice.DescribeNamespaceRequest_builder{Namespace: namespace}.Build())
 	return err
 }
 
@@ -1645,23 +1645,23 @@ func (aw *WorkflowReplayer) ReplayWorkflowExecution(ctx context.Context, service
 		logger = ilog.NewDefaultLogger()
 	}
 
-	sharedExecution := &commonpb.WorkflowExecution{
+	sharedExecution := commonpb.WorkflowExecution_builder{
 		RunId:      execution.RunID,
 		WorkflowId: execution.ID,
-	}
-	request := &workflowservice.GetWorkflowExecutionHistoryRequest{
+	}.Build()
+	request := workflowservice.GetWorkflowExecutionHistoryRequest_builder{
 		Namespace: namespace,
 		Execution: sharedExecution,
-	}
+	}.Build()
 	var history historypb.History
 	for {
 		resp, err := service.GetWorkflowExecutionHistory(ctx, request)
 		if err != nil {
 			return err
 		}
-		currHistory := resp.History
-		if resp.RawHistory != nil {
-			currHistory, err = serializer.DeserializeBlobDataToHistoryEvents(resp.RawHistory, enumspb.HISTORY_EVENT_FILTER_TYPE_ALL_EVENT)
+		currHistory := resp.GetHistory()
+		if resp.GetRawHistory() != nil {
+			currHistory, err = serializer.DeserializeBlobDataToHistoryEvents(resp.GetRawHistory(), enumspb.HISTORY_EVENT_FILTER_TYPE_ALL_EVENT)
 			if err != nil {
 				return err
 			}
@@ -1669,11 +1669,11 @@ func (aw *WorkflowReplayer) ReplayWorkflowExecution(ctx context.Context, service
 		if currHistory == nil {
 			break
 		}
-		history.Events = append(history.Events, currHistory.Events...)
-		if len(resp.NextPageToken) == 0 {
+		history.SetEvents(append(history.GetEvents(), currHistory.GetEvents()...))
+		if len(resp.GetNextPageToken()) == 0 {
 			break
 		}
-		request.NextPageToken = resp.NextPageToken
+		request.SetNextPageToken(resp.GetNextPageToken())
 	}
 	return aw.replayWorkflowHistory(logger, service, namespace, execution, &history)
 }
@@ -1738,7 +1738,7 @@ func (aw *WorkflowReplayer) replayWorkflowHistoryRoot(
 	history *historypb.History,
 ) error {
 	taskQueue := "ReplayTaskQueue"
-	events := history.Events
+	events := history.GetEvents()
 	if events == nil {
 		return errors.New("empty events")
 	}
@@ -1755,36 +1755,36 @@ func (aw *WorkflowReplayer) replayWorkflowHistoryRoot(
 	if attr == nil {
 		return errors.New("corrupted WorkflowExecutionStarted")
 	}
-	workflowType := attr.WorkflowType
-	execution := &commonpb.WorkflowExecution{
+	workflowType := attr.GetWorkflowType()
+	execution := commonpb.WorkflowExecution_builder{
 		RunId:      uuid.NewString(),
 		WorkflowId: "ReplayId",
-	}
+	}.Build()
 	if originalExecution.ID != "" {
-		execution.WorkflowId = originalExecution.ID
+		execution.SetWorkflowId(originalExecution.ID)
 	}
 	if originalExecution.RunID != "" {
-		execution.RunId = originalExecution.RunID
+		execution.SetRunId(originalExecution.RunID)
 	} else if first.GetWorkflowExecutionStartedEventAttributes().GetOriginalExecutionRunId() != "" {
-		execution.RunId = first.GetWorkflowExecutionStartedEventAttributes().GetOriginalExecutionRunId()
+		execution.SetRunId(first.GetWorkflowExecutionStartedEventAttributes().GetOriginalExecutionRunId())
 	}
 
 	if first.GetWorkflowExecutionStartedEventAttributes().GetTaskQueue().GetName() != "" {
 		taskQueue = first.GetWorkflowExecutionStartedEventAttributes().GetTaskQueue().GetName()
 	}
 
-	task := &workflowservice.PollWorkflowTaskQueueResponse{
+	task := workflowservice.PollWorkflowTaskQueueResponse_builder{
 		Attempt:                1,
 		TaskToken:              []byte("ReplayTaskToken"),
 		WorkflowType:           workflowType,
 		WorkflowExecution:      execution,
 		History:                history,
 		PreviousStartedEventId: math.MaxInt64,
-	}
+	}.Build()
 
 	iterator := &historyIteratorImpl{
-		nextPageToken: task.NextPageToken,
-		execution:     task.WorkflowExecution,
+		nextPageToken: task.GetNextPageToken(),
+		execution:     task.GetWorkflowExecution(),
 		namespace:     ReplayNamespace,
 		service:       service,
 		taskQueue:     taskQueue,
@@ -1803,7 +1803,7 @@ func (aw *WorkflowReplayer) replayWorkflowHistoryRoot(
 		// Hardcoding NopHandler avoids "No metrics handler configured for temporal worker"
 		// logs during replay.
 		MetricsHandler: metrics.NopHandler,
-		capabilities: &workflowservice.GetSystemInfoResponse_Capabilities{
+		capabilities: workflowservice.GetSystemInfoResponse_Capabilities_builder{
 			SignalAndQueryHeader:            true,
 			InternalErrorDifferentiation:    true,
 			ActivityFailureIncludeHeartbeat: true,
@@ -1812,7 +1812,7 @@ func (aw *WorkflowReplayer) replayWorkflowHistoryRoot(
 			UpsertMemo:                      true,
 			EagerWorkflowStart:              true,
 			SdkMetadata:                     true,
-		},
+		}.Build(),
 	}
 	if aw.disableDeadlockDetection {
 		params.DeadlockDetectionTimeout = math.MaxInt64
@@ -1842,7 +1842,7 @@ func (aw *WorkflowReplayer) replayWorkflowHistoryRoot(
 	if resp != nil {
 		completeReq, ok := resp.rawRequest.(*workflowservice.RespondWorkflowTaskCompletedRequest)
 		if ok {
-			for _, d := range completeReq.Commands {
+			for _, d := range completeReq.GetCommands() {
 				if d.GetCommandType() == enumspb.COMMAND_TYPE_CONTINUE_AS_NEW_WORKFLOW_EXECUTION {
 					if last.GetEventType() == enumspb.EVENT_TYPE_WORKFLOW_EXECUTION_CONTINUED_AS_NEW {
 						return nil
@@ -1852,7 +1852,7 @@ func (aw *WorkflowReplayer) replayWorkflowHistoryRoot(
 					if last.GetEventType() == enumspb.EVENT_TYPE_WORKFLOW_EXECUTION_COMPLETED {
 						aw.mu.Lock()
 						defer aw.mu.Unlock()
-						aw.workflowExecutionResults[execution.WorkflowId] = d.GetCompleteWorkflowExecutionCommandAttributes().Result
+						aw.workflowExecutionResults[execution.GetWorkflowId()] = d.GetCompleteWorkflowExecutionCommandAttributes().GetResult()
 						return nil
 					}
 				}
@@ -1883,10 +1883,10 @@ func HistoryFromJSON(r io.Reader, lastEventID int64) (*historypb.History, error)
 
 	// If there is a last event ID, slice the rest off
 	if lastEventID > 0 {
-		for i, event := range hist.Events {
-			if event.EventId == lastEventID {
+		for i, event := range hist.GetEvents() {
+			if event.GetEventId() == lastEventID {
 				// Inclusive
-				hist.Events = hist.Events[:i+1]
+				hist.SetEvents(hist.GetEvents()[:i+1])
 				break
 			}
 		}
@@ -1924,10 +1924,10 @@ func extractHistoryFromFile(jsonfileName string, lastEventID int64) (hist *histo
 
 	// If there is a last event ID, slice the rest off
 	if lastEventID > 0 {
-		for i, event := range hist.Events {
-			if event.EventId == lastEventID {
+		for i, event := range hist.GetEvents() {
+			if event.GetEventId() == lastEventID {
 				// Inclusive
-				hist.Events = hist.Events[:i+1]
+				hist.SetEvents(hist.GetEvents()[:i+1])
 				break
 			}
 		}
@@ -2441,16 +2441,16 @@ func executeFunction(fn interface{}, args []interface{}) (interface{}, error) {
 
 func workerDeploymentVersionFromProto(wd *deploymentpb.WorkerDeploymentVersion) WorkerDeploymentVersion {
 	return WorkerDeploymentVersion{
-		DeploymentName: wd.DeploymentName,
-		BuildID:        wd.BuildId,
+		DeploymentName: wd.GetDeploymentName(),
+		BuildID:        wd.GetBuildId(),
 	}
 }
 
 func (wd *WorkerDeploymentVersion) toProto() *deploymentpb.WorkerDeploymentVersion {
-	return &deploymentpb.WorkerDeploymentVersion{
+	return deploymentpb.WorkerDeploymentVersion_builder{
 		DeploymentName: wd.DeploymentName,
 		BuildId:        wd.BuildID,
-	}
+	}.Build()
 }
 
 func (wd *WorkerDeploymentVersion) toCanonicalString() string {
@@ -2472,7 +2472,7 @@ func workerDeploymentVersionFromProtoOrString(wd *deploymentpb.WorkerDeploymentV
 		return workerDeploymentVersionFromString(fallback)
 	}
 	return &WorkerDeploymentVersion{
-		DeploymentName: wd.DeploymentName,
-		BuildID:        wd.BuildId,
+		DeploymentName: wd.GetDeploymentName(),
+		BuildID:        wd.GetBuildId(),
 	}
 }

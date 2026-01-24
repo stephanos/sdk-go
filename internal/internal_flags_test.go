@@ -7,11 +7,12 @@ import (
 	"go.temporal.io/api/workflowservice/v1"
 )
 
+// DO NOT SUBMIT: fix callers to work with a pointer (go/goprotoapi-findings#message-value)
 var (
-	metadataDisabled = workflowservice.GetSystemInfoResponse_Capabilities{}
-	metadataEnabled  = workflowservice.GetSystemInfoResponse_Capabilities{
+	metadataDisabled = &workflowservice.GetSystemInfoResponse_Capabilities{}
+	metadataEnabled  = workflowservice.GetSystemInfoResponse_Capabilities_builder{
 		SdkMetadata: true,
-	}
+	}.Build()
 )
 
 const testFlag = SDKFlagChildWorkflowErrorExecution

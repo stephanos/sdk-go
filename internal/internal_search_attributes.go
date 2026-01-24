@@ -393,7 +393,7 @@ func serializeUntypedSearchAttributes(input map[string]interface{}) (*commonpb.S
 			return nil, fmt.Errorf("encode search attribute [%s] error: %v", k, err)
 		}
 	}
-	return &commonpb.SearchAttributes{IndexedFields: attr}, nil
+	return commonpb.SearchAttributes_builder{IndexedFields: attr}.Build(), nil
 }
 
 func serializeTypedSearchAttributes(searchAttributes map[SearchAttributeKey]interface{}) (*commonpb.SearchAttributes, error) {
@@ -409,11 +409,11 @@ func serializeTypedSearchAttributes(searchAttributes map[SearchAttributeKey]inte
 		}
 		// Server does not remove search attributes if they set a type
 		if payload.GetData() != nil {
-			payload.Metadata["type"] = []byte(k.GetValueType().String())
+			payload.GetMetadata()["type"] = []byte(k.GetValueType().String())
 		}
 		serializedAttr[k.GetName()] = payload
 	}
-	return &commonpb.SearchAttributes{IndexedFields: serializedAttr}, nil
+	return commonpb.SearchAttributes_builder{IndexedFields: serializedAttr}.Build(), nil
 }
 
 func serializeSearchAttributes(
@@ -441,7 +441,7 @@ func serializeSearchAttributes(
 func convertToTypedSearchAttributes(logger log.Logger, attributes map[string]*commonpb.Payload) SearchAttributes {
 	updates := make([]SearchAttributeUpdate, 0, len(attributes))
 	for key, payload := range attributes {
-		if payload.Data == nil {
+		if len(payload.GetData()) == 0 {
 			continue
 		}
 		valueType := enumspb.IndexedValueType(

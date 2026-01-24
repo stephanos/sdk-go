@@ -1629,56 +1629,56 @@ func SetCurrentDetails(ctx Context, details string) {
 func getWorkflowMetadata(ctx Context) (*sdk.WorkflowMetadata, error) {
 	info := GetWorkflowInfo(ctx)
 	eo := getWorkflowEnvOptions(ctx)
-	ret := &sdk.WorkflowMetadata{
-		Definition: &sdk.WorkflowDefinition{
+	ret := sdk.WorkflowMetadata_builder{
+		Definition: sdk.WorkflowDefinition_builder{
 			Type: info.WorkflowType.Name,
 			QueryDefinitions: []*sdk.WorkflowInteractionDefinition{
-				{
+				sdk.WorkflowInteractionDefinition_builder{
 					Name:        QueryTypeStackTrace,
 					Description: "Current stack trace",
-				},
-				{
+				}.Build(),
+				sdk.WorkflowInteractionDefinition_builder{
 					Name:        QueryTypeOpenSessions,
 					Description: "Open sessions on the workflow",
-				},
-				{
+				}.Build(),
+				sdk.WorkflowInteractionDefinition_builder{
 					Name:        QueryTypeWorkflowMetadata,
 					Description: "Metadata about the workflow",
-				},
+				}.Build(),
 			},
-		},
+		}.Build(),
 		CurrentDetails: eo.currentDetails,
-	}
+	}.Build()
 	// Queries
 	for k, v := range eo.queryHandlers {
-		ret.Definition.QueryDefinitions = append(ret.Definition.QueryDefinitions, &sdk.WorkflowInteractionDefinition{
+		ret.GetDefinition().SetQueryDefinitions(append(ret.GetDefinition().GetQueryDefinitions(), sdk.WorkflowInteractionDefinition_builder{
 			Name:        k,
 			Description: v.options.Description,
-		})
+		}.Build()))
 	}
 	// Signals
 	for k, v := range eo.requestedSignalChannels {
-		ret.Definition.SignalDefinitions = append(ret.Definition.SignalDefinitions, &sdk.WorkflowInteractionDefinition{
+		ret.GetDefinition().SetSignalDefinitions(append(ret.GetDefinition().GetSignalDefinitions(), sdk.WorkflowInteractionDefinition_builder{
 			Name:        k,
 			Description: v.options.Description,
-		})
+		}.Build()))
 	}
 	// Updates
 	for k, v := range eo.updateHandlers {
-		ret.Definition.UpdateDefinitions = append(ret.Definition.UpdateDefinitions, &sdk.WorkflowInteractionDefinition{
+		ret.GetDefinition().SetUpdateDefinitions(append(ret.GetDefinition().GetUpdateDefinitions(), sdk.WorkflowInteractionDefinition_builder{
 			Name:        k,
 			Description: v.description,
-		})
+		}.Build()))
 	}
 	// Sort interaction definitions
-	sortWorkflowInteractionDefinitions(ret.Definition.QueryDefinitions)
-	sortWorkflowInteractionDefinitions(ret.Definition.SignalDefinitions)
-	sortWorkflowInteractionDefinitions(ret.Definition.UpdateDefinitions)
+	sortWorkflowInteractionDefinitions(ret.GetDefinition().GetQueryDefinitions())
+	sortWorkflowInteractionDefinitions(ret.GetDefinition().GetSignalDefinitions())
+	sortWorkflowInteractionDefinitions(ret.GetDefinition().GetUpdateDefinitions())
 	return ret, nil
 }
 
 func sortWorkflowInteractionDefinitions(defns []*sdk.WorkflowInteractionDefinition) {
-	sort.Slice(defns, func(i, j int) bool { return defns[i].Name < defns[j].Name })
+	sort.Slice(defns, func(i, j int) bool { return defns[i].GetName() < defns[j].GetName() })
 }
 
 // getUnhandledSignalNames returns signal names that have unconsumed signals.

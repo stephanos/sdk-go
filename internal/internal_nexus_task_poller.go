@@ -65,26 +65,26 @@ func (ntp *nexusTaskPoller) poll(ctx context.Context) (taskForWorker, error) {
 	traceLog(func() {
 		ntp.logger.Debug("nexusTaskPoller::Poll")
 	})
-	request := &workflowservice.PollNexusTaskQueueRequest{
+	request := workflowservice.PollNexusTaskQueueRequest_builder{
 		Namespace: ntp.namespace,
-		TaskQueue: &taskqueuepb.TaskQueue{Name: ntp.taskQueueName, Kind: enumspb.TASK_QUEUE_KIND_NORMAL},
+		TaskQueue: taskqueuepb.TaskQueue_builder{Name: ntp.taskQueueName, Kind: enumspb.TASK_QUEUE_KIND_NORMAL}.Build(),
 		Identity:  ntp.identity,
-		WorkerVersionCapabilities: &commonpb.WorkerVersionCapabilities{
+		WorkerVersionCapabilities: commonpb.WorkerVersionCapabilities_builder{
 			BuildId:              ntp.workerBuildID,
 			UseVersioning:        ntp.useBuildIDVersioning,
 			DeploymentSeriesName: ntp.workerDeploymentVersion.DeploymentName,
-		},
+		}.Build(),
 		DeploymentOptions: workerDeploymentOptionsToProto(
 			ntp.useBuildIDVersioning,
 			ntp.workerDeploymentVersion,
 		),
-	}
+	}.Build()
 
 	response, err := ntp.pollNexusTaskQueue(ctx, request)
 	if err != nil {
 		return nil, err
 	}
-	if response == nil || len(response.TaskToken) == 0 {
+	if response == nil || len(response.GetTaskToken()) == 0 {
 		// No operation info is available on empty poll. Emit using base scope.
 		ntp.metricsHandler.Counter(metrics.NexusPollNoTaskCounter).Inc(1)
 		return nil, nil
@@ -129,7 +129,7 @@ func (ntp *nexusTaskPoller) ProcessTask(task interface{}) error {
 	if handlerErr != nil {
 		// context wasn't propagated to us, use a background context.
 		_, err := ntp.taskHandler.client.WorkflowService().RespondNexusTaskFailed(
-			context.Background(), ntp.taskHandler.fillInFailure(response.TaskToken, handlerErr))
+			context.Background(), ntp.taskHandler.fillInFailure(response.GetTaskToken(), handlerErr))
 		return err
 	}
 
@@ -160,7 +160,7 @@ func (ntp *nexusTaskPoller) ProcessTask(task interface{}) error {
 			WithTags(metrics.NexusTaskFailureTags("handler_error_" + failure.GetError().GetErrorType())).
 			Counter(metrics.NexusTaskExecutionFailedCounter).
 			Inc(1)
-	} else if e := res.Response.GetStartOperation().GetOperationError(); e != nil {
+	} else if e := res.GetResponse().GetStartOperation().GetOperationError(); e != nil {
 		nctx.metricsHandler.
 			WithTags(metrics.NexusTaskFailureTags("operation_" + e.GetOperationState())).
 			Counter(metrics.NexusTaskExecutionFailedCounter).

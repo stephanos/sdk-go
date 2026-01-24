@@ -23,18 +23,18 @@ func Test_WorkflowExecutionOptions_fromProtoResponse(t *testing.T) {
 		},
 		{
 			name: "normal workflow execution options",
-			response: &workflowservice.UpdateWorkflowExecutionOptionsResponse{
-				WorkflowExecutionOptions: &workflowpb.WorkflowExecutionOptions{
-					VersioningOverride: &workflowpb.VersioningOverride{
+			response: workflowservice.UpdateWorkflowExecutionOptionsResponse_builder{
+				WorkflowExecutionOptions: workflowpb.WorkflowExecutionOptions_builder{
+					VersioningOverride: workflowpb.VersioningOverride_builder{
 						Behavior:      enumspb.VersioningBehavior(VersioningBehaviorPinned),
 						PinnedVersion: "my series.v1",
-						Deployment: &deploymentpb.Deployment{
+						Deployment: deploymentpb.Deployment_builder{
 							SeriesName: "my series",
 							BuildId:    "v1",
-						},
-					},
-				},
-			},
+						}.Build(),
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			want: WorkflowExecutionOptions{
 				VersioningOverride: &PinnedVersioningOverride{
 					Version: WorkerDeploymentVersion{

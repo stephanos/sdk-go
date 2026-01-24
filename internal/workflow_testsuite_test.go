@@ -1164,14 +1164,12 @@ type testFailureConverter struct {
 
 func (c testFailureConverter) ErrorToFailure(err error) *failurepb.Failure {
 	if errors.As(err, &testCustomError{}) {
-		return &failurepb.Failure{
-			FailureInfo: &failurepb.Failure_ApplicationFailureInfo{
-				ApplicationFailureInfo: &failurepb.ApplicationFailureInfo{
-					Type:         "CUSTOM ERROR",
-					NonRetryable: true,
-				},
-			},
-		}
+		return failurepb.Failure_builder{
+			ApplicationFailureInfo: failurepb.ApplicationFailureInfo_builder{
+				Type:         "CUSTOM ERROR",
+				NonRetryable: true,
+			}.Build(),
+		}.Build()
 	}
 	return c.fallback.ErrorToFailure(err)
 }

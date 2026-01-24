@@ -14,6 +14,7 @@ import (
 	"go.temporal.io/api/workflowservice/v1"
 	"go.temporal.io/sdk/converter"
 	"go.temporal.io/sdk/internal/protocol"
+	"google.golang.org/protobuf/proto"
 )
 
 func mustSetUpdateHandler(
@@ -61,7 +62,7 @@ var runOnCallingThread = &testUpdateScheduler{
 }
 
 var testSDKFlags = newSDKFlags(
-	&workflowservice.GetSystemInfoResponse_Capabilities{SdkMetadata: true},
+	workflowservice.GetSystemInfoResponse_Capabilities_builder{SdkMetadata: true}.Build(),
 )
 
 func TestUpdateHandlerPanicHandling(t *testing.T) {
@@ -179,7 +180,7 @@ func TestDefaultUpdateHandler(t *testing.T) {
 		}
 	}
 
-	hdr := &commonpb.Header{Fields: map[string]*commonpb.Payload{}}
+	hdr := commonpb.Header_builder{Fields: map[string]*commonpb.Payload{}}.Build()
 	argStr := t.Name()
 	args, err := dc.ToPayloads(argStr)
 	require.NoError(t, err)
@@ -231,7 +232,7 @@ func TestDefaultUpdateHandler(t *testing.T) {
 			},
 			env.DrainUnhandledUpdates)
 
-		junkArgs := &commonpb.Payloads{Payloads: []*commonpb.Payload{&commonpb.Payload{}}}
+		junkArgs := commonpb.Payloads_builder{Payloads: []*commonpb.Payload{&commonpb.Payload{}}}.Build()
 		var rejectErr error
 		defaultUpdateHandler(ctx, t.Name(), "testID", junkArgs, hdr, &testUpdateCallbacks{
 			RejectImpl: func(err error) { rejectErr = err },
@@ -420,11 +421,11 @@ func TestDefaultUpdateHandler(t *testing.T) {
 func TestInvalidUpdateStateTransitions(t *testing.T) {
 	// these would all reflect programming errors so we expect panics
 	stubUpdateHandler := func(string, string, *commonpb.Payloads, *commonpb.Header, UpdateCallbacks) {}
-	requestMsg := protocolpb.Message{
+	requestMsg := protocolpb.Message_builder{
 		Id:                 t.Name() + "-id",
 		ProtocolInstanceId: t.Name() + "-proto-id",
 		Body:               protocol.MustMarshalAny(&updatepb.Request{}),
-	}
+	}.Build()
 	env := &workflowEnvironmentImpl{
 		sdkFlags:       testSDKFlags,
 		commandsHelper: newCommandsHelper(),
@@ -440,37 +441,37 @@ func TestInvalidUpdateStateTransitions(t *testing.T) {
 	})
 	t.Run("cannot complete from requested state", func(t *testing.T) {
 		up := newUpdateProtocol(t.Name(), stubUpdateHandler, env)
-		require.NoError(t, up.HandleMessage(&requestMsg))
+		require.NoError(t, up.HandleMessage(requestMsg))
 		require.Panics(t, func() { up.Complete("the result", nil) })
 	})
 	t.Run("cannot request from requested state", func(t *testing.T) {
 		up := newUpdateProtocol(t.Name(), stubUpdateHandler, env)
-		require.NoError(t, up.HandleMessage(&requestMsg))
-		require.Panics(t, func() { _ = up.HandleMessage(&requestMsg) })
+		require.NoError(t, up.HandleMessage(requestMsg))
+		require.Panics(t, func() { _ = up.HandleMessage(requestMsg) })
 	})
 	t.Run("cannot request from accepted state", func(t *testing.T) {
 		up := newUpdateProtocol(t.Name(), stubUpdateHandler, env)
-		require.NoError(t, up.HandleMessage(&requestMsg))
+		require.NoError(t, up.HandleMessage(requestMsg))
 		up.Accept()
-		require.Panics(t, func() { _ = up.HandleMessage(&requestMsg) })
+		require.Panics(t, func() { _ = up.HandleMessage(requestMsg) })
 	})
 	t.Run("cannot reject from accepted state", func(t *testing.T) {
 		up := newUpdateProtocol(t.Name(), stubUpdateHandler, env)
-		require.NoError(t, up.HandleMessage(&requestMsg))
+		require.NoError(t, up.HandleMessage(requestMsg))
 		up.Accept()
 		require.Panics(t, func() { up.Reject(errors.New("reject")) })
 	})
 	t.Run("cannot request from completed state", func(t *testing.T) {
 		up := newUpdateProtocol(t.Name(), stubUpdateHandler, env)
-		require.NoError(t, up.HandleMessage(&requestMsg))
+		require.NoError(t, up.HandleMessage(requestMsg))
 		up.Accept()
 		up.Complete("success", nil)
 		require.True(t, up.HasCompleted())
-		require.Panics(t, func() { _ = up.HandleMessage(&requestMsg) })
+		require.Panics(t, func() { _ = up.HandleMessage(requestMsg) })
 	})
 	t.Run("cannot accept from completed state", func(t *testing.T) {
 		up := newUpdateProtocol(t.Name(), stubUpdateHandler, env)
-		require.NoError(t, up.HandleMessage(&requestMsg))
+		require.NoError(t, up.HandleMessage(requestMsg))
 		up.Accept()
 		up.Complete("success", nil)
 		require.True(t, up.HasCompleted())
@@ -478,7 +479,7 @@ func TestInvalidUpdateStateTransitions(t *testing.T) {
 	})
 	t.Run("cannot reject from completed state", func(t *testing.T) {
 		up := newUpdateProtocol(t.Name(), stubUpdateHandler, env)
-		require.NoError(t, up.HandleMessage(&requestMsg))
+		require.NoError(t, up.HandleMessage(requestMsg))
 		up.Accept()
 		up.Complete("success", nil)
 		require.True(t, up.HasCompleted())
@@ -489,18 +490,18 @@ func TestInvalidUpdateStateTransitions(t *testing.T) {
 func TestCompletedEventPredicate(t *testing.T) {
 	updateID := t.Name() + "-update-id"
 	stubUpdateHandler := func(string, string, *commonpb.Payloads, *commonpb.Header, UpdateCallbacks) {}
-	requestMsg := protocolpb.Message{
+	requestMsg := protocolpb.Message_builder{
 		Id:                 t.Name() + "-id",
 		ProtocolInstanceId: updateID,
 		Body:               protocol.MustMarshalAny(&updatepb.Request{}),
-	}
+	}.Build()
 	env := &workflowEnvironmentImpl{
 		sdkFlags:       testSDKFlags,
 		commandsHelper: newCommandsHelper(),
 		dataConverter:  converter.GetDefaultDataConverter(),
 	}
 	up := newUpdateProtocol(updateID, stubUpdateHandler, env)
-	require.NoError(t, up.HandleMessage(&requestMsg))
+	require.NoError(t, up.HandleMessage(requestMsg))
 	up.Accept()
 	up.Complete("success", nil)
 	require.Len(t, env.outbox, 2, "expected to find accepted and completed messages")
@@ -508,20 +509,16 @@ func TestCompletedEventPredicate(t *testing.T) {
 	pred := env.outbox[1].eventPredicate
 
 	require.False(t, pred(&historypb.HistoryEvent{}))
-	require.False(t, pred(&historypb.HistoryEvent{
-		Attributes: &historypb.HistoryEvent_WorkflowExecutionUpdateCompletedEventAttributes{
-			WorkflowExecutionUpdateCompletedEventAttributes: &historypb.WorkflowExecutionUpdateCompletedEventAttributes{
-				Meta: &updatepb.Meta{UpdateId: "some other update ID"},
-			},
-		},
-	}))
-	require.True(t, pred(&historypb.HistoryEvent{
-		Attributes: &historypb.HistoryEvent_WorkflowExecutionUpdateCompletedEventAttributes{
-			WorkflowExecutionUpdateCompletedEventAttributes: &historypb.WorkflowExecutionUpdateCompletedEventAttributes{
-				Meta: &updatepb.Meta{UpdateId: updateID},
-			},
-		},
-	}))
+	require.False(t, pred(historypb.HistoryEvent_builder{
+		WorkflowExecutionUpdateCompletedEventAttributes: historypb.WorkflowExecutionUpdateCompletedEventAttributes_builder{
+			Meta: updatepb.Meta_builder{UpdateId: "some other update ID"}.Build(),
+		}.Build(),
+	}.Build()))
+	require.True(t, pred(historypb.HistoryEvent_builder{
+		WorkflowExecutionUpdateCompletedEventAttributes: historypb.WorkflowExecutionUpdateCompletedEventAttributes_builder{
+			Meta: updatepb.Meta_builder{UpdateId: updateID}.Build(),
+		}.Build(),
+	}.Build()))
 }
 
 func TestAcceptedEventPredicate(t *testing.T) {
@@ -529,28 +526,28 @@ func TestAcceptedEventPredicate(t *testing.T) {
 	requestMsgID := t.Name() + "request-msg-id"
 	requestSeqID := int64(1234)
 	stubUpdateHandler := func(string, string, *commonpb.Payloads, *commonpb.Header, UpdateCallbacks) {}
-	request := updatepb.Request{
-		Meta: &updatepb.Meta{UpdateId: updateID},
-	}
-	requestMsg := protocolpb.Message{
+	request := updatepb.Request_builder{
+		Meta: updatepb.Meta_builder{UpdateId: updateID}.Build(),
+	}.Build()
+	requestMsg := protocolpb.Message_builder{
 		Id:                 requestMsgID,
-		SequencingId:       &protocolpb.Message_EventId{EventId: requestSeqID},
+		EventId:            proto.Int64(requestSeqID),
 		ProtocolInstanceId: updateID,
-		Body:               protocol.MustMarshalAny(&request),
-	}
+		Body:               protocol.MustMarshalAny(request),
+	}.Build()
 	env := &workflowEnvironmentImpl{
 		sdkFlags:       testSDKFlags,
 		commandsHelper: newCommandsHelper(),
 		dataConverter:  converter.GetDefaultDataConverter(),
 	}
 	up := newUpdateProtocol(updateID, stubUpdateHandler, env)
-	require.NoError(t, up.HandleMessage(&requestMsg))
+	require.NoError(t, up.HandleMessage(requestMsg))
 	up.Accept()
 	require.Len(t, env.outbox, 1, "expected to find accepted message")
 
 	var acptmsg updatepb.Acceptance
-	require.NoError(t, env.outbox[0].msg.Body.UnmarshalTo(&acptmsg))
-	require.EqualExportedValues(t, &request, acptmsg.AcceptedRequest,
+	require.NoError(t, env.outbox[0].msg.GetBody().UnmarshalTo(&acptmsg))
+	require.EqualExportedValues(t, request, acptmsg.GetAcceptedRequest(),
 		"Sent the original request back in the accepted message")
 
 	pred := env.outbox[0].eventPredicate
@@ -562,41 +559,39 @@ func TestAcceptedEventPredicate(t *testing.T) {
 		{
 			name: "wrong req msg ID",
 			test: require.False,
-			attrs: &historypb.WorkflowExecutionUpdateAcceptedEventAttributes{
+			attrs: historypb.WorkflowExecutionUpdateAcceptedEventAttributes_builder{
 				ProtocolInstanceId:               updateID,
-				AcceptedRequest:                  &request,
+				AcceptedRequest:                  request,
 				AcceptedRequestMessageId:         "wrong request message ID",
 				AcceptedRequestSequencingEventId: requestSeqID,
-			},
+			}.Build(),
 		},
 		{
 			name: "wrong req seq ID",
 			test: require.False,
-			attrs: &historypb.WorkflowExecutionUpdateAcceptedEventAttributes{
+			attrs: historypb.WorkflowExecutionUpdateAcceptedEventAttributes_builder{
 				ProtocolInstanceId:               updateID,
-				AcceptedRequest:                  &request,
+				AcceptedRequest:                  request,
 				AcceptedRequestMessageId:         requestMsgID,
 				AcceptedRequestSequencingEventId: requestSeqID + 10,
-			},
+			}.Build(),
 		},
 		{
 			name: "match",
 			test: require.True,
-			attrs: &historypb.WorkflowExecutionUpdateAcceptedEventAttributes{
-				AcceptedRequest:                  &request,
+			attrs: historypb.WorkflowExecutionUpdateAcceptedEventAttributes_builder{
+				AcceptedRequest:                  request,
 				ProtocolInstanceId:               updateID,
 				AcceptedRequestMessageId:         requestMsgID,
 				AcceptedRequestSequencingEventId: requestSeqID,
-			},
+			}.Build(),
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			event := historypb.HistoryEvent{
-				Attributes: &historypb.HistoryEvent_WorkflowExecutionUpdateAcceptedEventAttributes{
-					WorkflowExecutionUpdateAcceptedEventAttributes: tc.attrs,
-				},
-			}
-			tc.test(t, pred(&event))
+			event := historypb.HistoryEvent_builder{
+				WorkflowExecutionUpdateAcceptedEventAttributes: proto.ValueOrDefault(tc.attrs),
+			}.Build()
+			tc.test(t, pred(event))
 		})
 	}
 }

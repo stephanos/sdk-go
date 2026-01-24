@@ -29,6 +29,7 @@ import (
 	"go.temporal.io/sdk/internal/common/metrics"
 	"go.temporal.io/sdk/log"
 	"go.temporal.io/sdk/workflow"
+	"google.golang.org/protobuf/proto"
 )
 
 // OperationInfo contains information about a currently executing Nexus operation.
@@ -244,16 +245,14 @@ func (h workflowHandle[T]) link() nexus.Link {
 	// Create the link information about the workflow and return to the caller.
 	link := h.wfEventLink.GetWorkflowEvent()
 	if link == nil {
-		link = &common.Link_WorkflowEvent{
+		link = common.Link_WorkflowEvent_builder{
 			Namespace:  h.namespace,
 			WorkflowId: h.ID(),
 			RunId:      h.RunID(),
-			Reference: &common.Link_WorkflowEvent_EventRef{
-				EventRef: &common.Link_WorkflowEvent_EventReference{
-					EventType: enums.EVENT_TYPE_WORKFLOW_EXECUTION_STARTED,
-				},
-			},
-		}
+			EventRef: common.Link_WorkflowEvent_EventReference_builder{
+				EventType: enums.EVENT_TYPE_WORKFLOW_EXECUTION_STARTED,
+			}.Build(),
+		}.Build()
 	}
 	return ConvertLinkWorkflowEventToNexusLink(link)
 }
@@ -330,15 +329,13 @@ func ExecuteUntypedWorkflow[R any](
 		nexusOptions.CallbackHeader.Set("nexus-operation-id", encodedToken)
 		nexusOptions.CallbackHeader.Set(nexus.HeaderOperationToken, encodedToken)
 		internal.SetCallbacksOnStartWorkflowOptions(&startWorkflowOptions, []*common.Callback{
-			{
-				Variant: &common.Callback_Nexus_{
-					Nexus: &common.Callback_Nexus{
-						Url:    nexusOptions.CallbackURL,
-						Header: nexusOptions.CallbackHeader,
-					},
-				},
+			common.Callback_builder{
+				Nexus: common.Callback_Nexus_builder{
+					Url:    nexusOptions.CallbackURL,
+					Header: nexusOptions.CallbackHeader,
+				}.Build(),
 				Links: links,
-			},
+			}.Build(),
 		})
 	}
 
@@ -376,11 +373,9 @@ func convertNexusLinks(nexusLinks []nexus.Link, log log.Logger) ([]*common.Link,
 			if err != nil {
 				return nil, err
 			}
-			links = append(links, &common.Link{
-				Variant: &common.Link_WorkflowEvent_{
-					WorkflowEvent: link,
-				},
-			})
+			links = append(links, common.Link_builder{
+				WorkflowEvent: proto.ValueOrDefault(link),
+			}.Build())
 		default:
 			log.Warn("ignoring unsupported link data type: %q", nexusLink.Type)
 		}

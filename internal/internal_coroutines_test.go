@@ -531,7 +531,7 @@ func TestBlockingSelect(t *testing.T) {
 func TestSelectBlockingDefault(t *testing.T) {
 	var history []string
 	env := &workflowEnvironmentImpl{
-		sdkFlags:       newSDKFlags(&workflowservice.GetSystemInfoResponse_Capabilities{SdkMetadata: true}),
+		sdkFlags:       newSDKFlags(workflowservice.GetSystemInfoResponse_Capabilities_builder{SdkMetadata: true}.Build()),
 		commandsHelper: newCommandsHelper(),
 		dataConverter:  converter.GetDefaultDataConverter(),
 		workflowInfo: &WorkflowInfo{
@@ -603,7 +603,7 @@ func TestSelectBlockingDefault(t *testing.T) {
 func TestSelectBlockingDefaultWithFlag(t *testing.T) {
 	var history []string
 	env := &workflowEnvironmentImpl{
-		sdkFlags:       newSDKFlags(&workflowservice.GetSystemInfoResponse_Capabilities{SdkMetadata: true}),
+		sdkFlags:       newSDKFlags(workflowservice.GetSystemInfoResponse_Capabilities_builder{SdkMetadata: true}.Build()),
 		commandsHelper: newCommandsHelper(),
 		dataConverter:  converter.GetDefaultDataConverter(),
 		workflowInfo: &WorkflowInfo{

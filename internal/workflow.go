@@ -2654,13 +2654,13 @@ func convertToPBRetryPolicy(retryPolicy *RetryPolicy) *commonpb.RetryPolicy {
 		return nil
 	}
 
-	return &commonpb.RetryPolicy{
+	return commonpb.RetryPolicy_builder{
 		MaximumInterval:        durationpb.New(retryPolicy.MaximumInterval),
 		InitialInterval:        durationpb.New(retryPolicy.InitialInterval),
 		BackoffCoefficient:     retryPolicy.BackoffCoefficient,
 		MaximumAttempts:        retryPolicy.MaximumAttempts,
 		NonRetryableErrorTypes: retryPolicy.NonRetryableErrorTypes,
-	}
+	}.Build()
 }
 
 func convertFromPBRetryPolicy(retryPolicy *commonpb.RetryPolicy) *RetryPolicy {
@@ -2669,13 +2669,13 @@ func convertFromPBRetryPolicy(retryPolicy *commonpb.RetryPolicy) *RetryPolicy {
 	}
 
 	p := RetryPolicy{
-		BackoffCoefficient:     retryPolicy.BackoffCoefficient,
-		MaximumAttempts:        retryPolicy.MaximumAttempts,
-		NonRetryableErrorTypes: retryPolicy.NonRetryableErrorTypes,
+		BackoffCoefficient:     retryPolicy.GetBackoffCoefficient(),
+		MaximumAttempts:        retryPolicy.GetMaximumAttempts(),
+		NonRetryableErrorTypes: retryPolicy.GetNonRetryableErrorTypes(),
 	}
 
-	p.MaximumInterval = retryPolicy.MaximumInterval.AsDuration()
-	p.InitialInterval = retryPolicy.InitialInterval.AsDuration()
+	p.MaximumInterval = retryPolicy.GetMaximumInterval().AsDuration()
+	p.InitialInterval = retryPolicy.GetInitialInterval().AsDuration()
 
 	return &p
 }
@@ -2690,11 +2690,11 @@ func convertToPBPriority(priority Priority) *commonpb.Priority {
 		return nil
 	}
 
-	return &commonpb.Priority{
+	return commonpb.Priority_builder{
 		PriorityKey:    int32(priority.PriorityKey),
 		FairnessKey:    priority.FairnessKey,
 		FairnessWeight: priority.FairnessWeight,
-	}
+	}.Build()
 }
 
 func convertFromPBPriority(priority *commonpb.Priority) Priority {
@@ -2704,9 +2704,9 @@ func convertFromPBPriority(priority *commonpb.Priority) Priority {
 	}
 
 	return Priority{
-		PriorityKey:    int(priority.PriorityKey),
-		FairnessKey:    priority.FairnessKey,
-		FairnessWeight: priority.FairnessWeight,
+		PriorityKey:    int(priority.GetPriorityKey()),
+		FairnessKey:    priority.GetFairnessKey(),
+		FairnessWeight: priority.GetFairnessWeight(),
 	}
 }
 
@@ -2919,7 +2919,7 @@ func (wc *workflowEnvironmentInterceptor) ExecuteNexusOperation(ctx Context, inp
 	seq := wc.env.ExecuteNexusOperation(params, func(r *commonpb.Payload, e error) {
 		var payloads *commonpb.Payloads
 		if r != nil {
-			payloads = &commonpb.Payloads{Payloads: []*commonpb.Payload{r}}
+			payloads = commonpb.Payloads_builder{Payloads: []*commonpb.Payload{r}}.Build()
 		}
 		mainSettable.Set(payloads, e)
 		if cancellable {

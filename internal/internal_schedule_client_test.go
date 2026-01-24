@@ -123,11 +123,11 @@ func (s *scheduleClientTestSuite) TestCreateScheduleWithMemoAndSearchAttr() {
 		Do(func(_ interface{}, req *workflowservice.CreateScheduleRequest, _ ...interface{}) {
 			var resultMemo, resultAttr string
 			// verify the schedules memo and search attributes
-			err := converter.GetDefaultDataConverter().FromPayload(req.Memo.Fields["testMemo"], &resultMemo)
+			err := converter.GetDefaultDataConverter().FromPayload(req.GetMemo().GetFields()["testMemo"], &resultMemo)
 			s.NoError(err)
 			s.Equal("memo value", resultMemo)
 
-			err = converter.GetDefaultDataConverter().FromPayload(req.SearchAttributes.IndexedFields["testAttr"], &resultAttr)
+			err = converter.GetDefaultDataConverter().FromPayload(req.GetSearchAttributes().GetIndexedFields()["testAttr"], &resultAttr)
 			s.NoError(err)
 			s.Equal("attr value", resultAttr)
 		})
@@ -135,9 +135,9 @@ func (s *scheduleClientTestSuite) TestCreateScheduleWithMemoAndSearchAttr() {
 }
 
 func getListSchedulesRequest() *workflowservice.ListSchedulesRequest {
-	request := &workflowservice.ListSchedulesRequest{
+	request := workflowservice.ListSchedulesRequest_builder{
 		Namespace: DefaultNamespace,
-	}
+	}.Build()
 
 	return request
 }
@@ -146,35 +146,35 @@ func getListSchedulesRequest() *workflowservice.ListSchedulesRequest {
 
 func (s *scheduleClientTestSuite) TestScheduleIterator_NoError() {
 	request1 := getListSchedulesRequest()
-	response1 := &workflowservice.ListSchedulesResponse{
+	response1 := workflowservice.ListSchedulesResponse_builder{
 		Schedules: []*schedulepb.ScheduleListEntry{
-			{
+			schedulepb.ScheduleListEntry_builder{
 				ScheduleId: "",
-			},
+			}.Build(),
 		},
 		NextPageToken: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
-	}
+	}.Build()
 	request2 := getListSchedulesRequest()
-	request2.NextPageToken = response1.NextPageToken
-	response2 := &workflowservice.ListSchedulesResponse{
+	request2.SetNextPageToken(response1.GetNextPageToken())
+	response2 := workflowservice.ListSchedulesResponse_builder{
 		Schedules: []*schedulepb.ScheduleListEntry{
-			{
+			schedulepb.ScheduleListEntry_builder{
 				ScheduleId: "",
-			},
+			}.Build(),
 		},
 		NextPageToken: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
-	}
+	}.Build()
 
 	request3 := getListSchedulesRequest()
-	request3.NextPageToken = response2.NextPageToken
-	response3 := &workflowservice.ListSchedulesResponse{
+	request3.SetNextPageToken(response2.GetNextPageToken())
+	response3 := workflowservice.ListSchedulesResponse_builder{
 		Schedules: []*schedulepb.ScheduleListEntry{
-			{
+			schedulepb.ScheduleListEntry_builder{
 				ScheduleId: "",
-			},
+			}.Build(),
 		},
 		NextPageToken: nil,
-	}
+	}.Build()
 
 	s.service.EXPECT().ListSchedules(gomock.Any(), request1, gomock.Any()).Return(response1, nil).Times(1)
 	s.service.EXPECT().ListSchedules(gomock.Any(), request2, gomock.Any()).Return(response2, nil).Times(1)
@@ -192,16 +192,16 @@ func (s *scheduleClientTestSuite) TestScheduleIterator_NoError() {
 
 func (s *scheduleClientTestSuite) TestIteratorError() {
 	request1 := getListSchedulesRequest()
-	response1 := &workflowservice.ListSchedulesResponse{
+	response1 := workflowservice.ListSchedulesResponse_builder{
 		Schedules: []*schedulepb.ScheduleListEntry{
-			{
+			schedulepb.ScheduleListEntry_builder{
 				ScheduleId: "",
-			},
+			}.Build(),
 		},
 		NextPageToken: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
-	}
+	}.Build()
 	request2 := getListSchedulesRequest()
-	request2.NextPageToken = response1.NextPageToken
+	request2.SetNextPageToken(response1.GetNextPageToken())
 
 	s.service.EXPECT().ListSchedules(gomock.Any(), request1, gomock.Any()).Return(response1, nil).Times(1)
 

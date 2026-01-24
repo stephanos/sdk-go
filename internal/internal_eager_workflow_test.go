@@ -40,9 +40,9 @@ func TestEagerWorkflowDispatchNoWorkerOnTaskQueue(t *testing.T) {
 		executionParameters: workerExecutionParameters{TaskQueue: "bad-task-queue"},
 	})
 
-	request := &workflowservice.StartWorkflowExecutionRequest{
-		TaskQueue: &taskqueuepb.TaskQueue{Name: "task-queue"},
-	}
+	request := workflowservice.StartWorkflowExecutionRequest_builder{
+		TaskQueue: taskqueuepb.TaskQueue_builder{Name: "task-queue"}.Build(),
+	}.Build()
 	exec := dispatcher.applyToRequest(request)
 	require.Nil(t, exec)
 	require.False(t, request.GetRequestEagerExecution())
@@ -66,9 +66,9 @@ func TestEagerWorkflowDispatchAvailableWorker(t *testing.T) {
 		availableWorker: {},
 	}
 
-	request := &workflowservice.StartWorkflowExecutionRequest{
-		TaskQueue: &taskqueuepb.TaskQueue{Name: "task-queue"},
-	}
+	request := workflowservice.StartWorkflowExecutionRequest_builder{
+		TaskQueue: taskqueuepb.TaskQueue_builder{Name: "task-queue"}.Build(),
+	}.Build()
 	exec := dispatcher.applyToRequest(request)
 	require.Equal(t, exec.worker, availableWorker)
 	require.True(t, request.GetRequestEagerExecution())
@@ -95,20 +95,20 @@ func TestEagerWorkflowDispatchWithDeploymentOptions(t *testing.T) {
 		workerWithDeployment: {},
 	}
 
-	request := &workflowservice.StartWorkflowExecutionRequest{
-		TaskQueue: &taskqueuepb.TaskQueue{Name: "task-queue"},
-	}
+	request := workflowservice.StartWorkflowExecutionRequest_builder{
+		TaskQueue: taskqueuepb.TaskQueue_builder{Name: "task-queue"}.Build(),
+	}.Build()
 	exec := dispatcher.applyToRequest(request)
 
 	require.NotNil(t, exec)
 	require.Equal(t, workerWithDeployment, exec.worker)
 	require.True(t, request.GetRequestEagerExecution())
 
-	require.NotNil(t, request.EagerWorkerDeploymentOptions)
-	ewdo := request.EagerWorkerDeploymentOptions
-	require.Equal(t, "test-deployment", ewdo.DeploymentName)
-	require.Equal(t, "test-build-id", ewdo.BuildId)
-	require.Equal(t, enums.WORKER_VERSIONING_MODE_VERSIONED, ewdo.WorkerVersioningMode)
+	require.NotNil(t, request.GetEagerWorkerDeploymentOptions())
+	ewdo := request.GetEagerWorkerDeploymentOptions()
+	require.Equal(t, "test-deployment", ewdo.GetDeploymentName())
+	require.Equal(t, "test-build-id", ewdo.GetBuildId())
+	require.Equal(t, enums.WORKER_VERSIONING_MODE_VERSIONED, ewdo.GetWorkerVersioningMode())
 }
 
 func TestEagerWorkflowDispatchWithoutDeploymentVersioning(t *testing.T) {
@@ -131,18 +131,18 @@ func TestEagerWorkflowDispatchWithoutDeploymentVersioning(t *testing.T) {
 		workerWithoutVersioning: {},
 	}
 
-	request := &workflowservice.StartWorkflowExecutionRequest{
-		TaskQueue: &taskqueuepb.TaskQueue{Name: "task-queue"},
-	}
+	request := workflowservice.StartWorkflowExecutionRequest_builder{
+		TaskQueue: taskqueuepb.TaskQueue_builder{Name: "task-queue"}.Build(),
+	}.Build()
 	exec := dispatcher.applyToRequest(request)
 
 	require.NotNil(t, exec)
 	require.True(t, request.GetRequestEagerExecution())
-	require.NotNil(t, request.EagerWorkerDeploymentOptions)
-	ewdo := request.EagerWorkerDeploymentOptions
-	require.Equal(t, "test-deployment", ewdo.DeploymentName)
-	require.Equal(t, "test-build-id", ewdo.BuildId)
-	require.Equal(t, enums.WORKER_VERSIONING_MODE_UNVERSIONED, ewdo.WorkerVersioningMode)
+	require.NotNil(t, request.GetEagerWorkerDeploymentOptions())
+	ewdo := request.GetEagerWorkerDeploymentOptions()
+	require.Equal(t, "test-deployment", ewdo.GetDeploymentName())
+	require.Equal(t, "test-build-id", ewdo.GetBuildId())
+	require.Equal(t, enums.WORKER_VERSIONING_MODE_UNVERSIONED, ewdo.GetWorkerVersioningMode())
 }
 
 func TestEagerWorkflowExecutor(t *testing.T) {

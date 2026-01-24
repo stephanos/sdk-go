@@ -52,10 +52,10 @@ func TestErrorWrapper_ErrorWithFailure(t *testing.T) {
 
 	svcerr := errorInterceptor(context.Background(), "method", "request", "reply", nil,
 		func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, opts ...grpc.CallOption) error {
-			st, _ := status.New(codes.AlreadyExists, "Something started").WithDetails(&errordetails.WorkflowExecutionAlreadyStartedFailure{
+			st, _ := status.New(codes.AlreadyExists, "Something started").WithDetails(errordetails.WorkflowExecutionAlreadyStartedFailure_builder{
 				StartRequestId: "srId",
 				RunId:          "rId",
-			})
+			}.Build())
 
 			return st.Err()
 		})
@@ -181,9 +181,9 @@ func TestInternalErrorRetry(t *testing.T) {
 	srv, err = startTestGRPCServer()
 	require.NoError(t, err)
 	defer srv.Stop()
-	srv.getSystemInfoResponse.Capabilities = &workflowservice.GetSystemInfoResponse_Capabilities{
+	srv.getSystemInfoResponse.SetCapabilities(workflowservice.GetSystemInfoResponse_Capabilities_builder{
 		InternalErrorDifferentiation: true,
-	}
+	}.Build())
 
 	// Set it to return an internal error on signal workflow
 	srv.signalWorkflowExecutionResponseError = status.Error(codes.Internal, "oh no, an internal error")
@@ -364,16 +364,16 @@ func TestCustomResolver(t *testing.T) {
 	// codebase itself:
 	// https://github.com/grpc/grpc-go/blob/bd7076973b45b81e37a45eb761efb789e2001618/balancer/roundrobin/roundrobin_test.go#L196-L212
 	connected := map[net.Addr]struct{}{}
-	req := workflowservice.SignalWorkflowExecutionRequest{
-		WorkflowExecution: &common.WorkflowExecution{WorkflowId: "workflowid", RunId: "runid"},
+	req := workflowservice.SignalWorkflowExecutionRequest_builder{
+		WorkflowExecution: common.WorkflowExecution_builder{WorkflowId: "workflowid", RunId: "runid"}.Build(),
 		SignalName:        "signal",
 		Namespace:         DefaultNamespace,
 		Identity:          t.Name(),
-	}
+	}.Build()
 	var peerOut peer.Peer
 	for len(connected) < 2 {
-		req.RequestId = uuid.NewString()
-		_, err := client.WorkflowService().SignalWorkflowExecution(context.Background(), &req, grpc.Peer(&peerOut))
+		req.SetRequestId(uuid.NewString())
+		_, err := client.WorkflowService().SignalWorkflowExecution(context.Background(), req, grpc.Peer(&peerOut))
 		if err == nil {
 			connected[peerOut.Addr] = struct{}{}
 		}
@@ -411,9 +411,9 @@ func TestResourceExhaustedCause(t *testing.T) {
 	handler := metrics.NewCapturingHandler()
 
 	// Attempt dial with a resource exhausted cause
-	s, _ := status.New(codes.ResourceExhausted, "some resource exhausted").WithDetails(&errordetails.ResourceExhaustedFailure{
+	s, _ := status.New(codes.ResourceExhausted, "some resource exhausted").WithDetails(errordetails.ResourceExhaustedFailure_builder{
 		Cause: enums.RESOURCE_EXHAUSTED_CAUSE_CONCURRENT_LIMIT,
-	})
+	}.Build())
 	srv.getSystemInfoResponseError = s.Err()
 	_, err = DialClient(context.Background(), ClientOptions{HostPort: srv.addr, MetricsHandler: handler})
 	require.Error(t, err)
@@ -607,10 +607,10 @@ type testGRPCServer struct {
 	healthServer                         *health.Server
 	sigWfCount                           int32
 	getSystemInfoRequestContext          context.Context
-	getSystemInfoResponse                workflowservice.GetSystemInfoResponse
+	getSystemInfoResponse                *workflowservice.GetSystemInfoResponse
 	getSystemInfoResponseError           error
 	lastSignalWorkflowExecutionContext   context.Context
-	signalWorkflowExecutionResponse      workflowservice.SignalWorkflowExecutionResponse
+	signalWorkflowExecutionResponse      *workflowservice.SignalWorkflowExecutionResponse
 	signalWorkflowExecutionResponseError error
 }
 

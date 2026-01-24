@@ -24,22 +24,20 @@ func Test_WorkerVersioningRules_fromProtoGetResponse(t *testing.T) {
 		},
 		{
 			name: "normal rules",
-			response: &workflowservice.GetWorkerVersioningRulesResponse{
+			response: workflowservice.GetWorkerVersioningRulesResponse_builder{
 				AssignmentRules: []*taskqueuepb.TimestampedBuildIdAssignmentRule{
-					{Rule: &taskqueuepb.BuildIdAssignmentRule{
-						TargetBuildId: "one", Ramp: &taskqueuepb.BuildIdAssignmentRule_PercentageRamp{
-							PercentageRamp: &taskqueuepb.RampByPercentage{RampPercentage: 50.0},
-						},
-					},
+					taskqueuepb.TimestampedBuildIdAssignmentRule_builder{Rule: taskqueuepb.BuildIdAssignmentRule_builder{
+						TargetBuildId: "one", PercentageRamp: taskqueuepb.RampByPercentage_builder{RampPercentage: 50.0}.Build(),
+					}.Build(),
 						CreateTime: nowProto,
-					},
+					}.Build(),
 				},
 				CompatibleRedirectRules: []*taskqueuepb.TimestampedCompatibleBuildIdRedirectRule{
-					{Rule: &taskqueuepb.CompatibleBuildIdRedirectRule{SourceBuildId: "one", TargetBuildId: "two"}, CreateTime: nowProto},
-					{Rule: &taskqueuepb.CompatibleBuildIdRedirectRule{SourceBuildId: "two", TargetBuildId: "three"}, CreateTime: nowProto},
+					taskqueuepb.TimestampedCompatibleBuildIdRedirectRule_builder{Rule: taskqueuepb.CompatibleBuildIdRedirectRule_builder{SourceBuildId: "one", TargetBuildId: "two"}.Build(), CreateTime: nowProto}.Build(),
+					taskqueuepb.TimestampedCompatibleBuildIdRedirectRule_builder{Rule: taskqueuepb.CompatibleBuildIdRedirectRule_builder{SourceBuildId: "two", TargetBuildId: "three"}.Build(), CreateTime: nowProto}.Build(),
 				},
 				ConflictToken: []byte("This is a token"),
-			},
+			}.Build(),
 			want: &WorkerVersioningRules{
 				AssignmentRules: []*VersioningAssignmentRuleWithTimestamp{
 					{Rule: VersioningAssignmentRule{TargetBuildID: "one", Ramp: &VersioningRampByPercentage{Percentage: 50.0}}, CreateTime: timestamp},

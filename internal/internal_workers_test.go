@@ -137,9 +137,9 @@ func (s *WorkersTestSuite) TestWorkflowWorkerSlotSupplier() {
 		s.SetupTest()
 		taskQueue := "testTaskQueue"
 		testEvents := []*historypb.HistoryEvent{
-			createTestEventWorkflowExecutionStarted(1, &historypb.WorkflowExecutionStartedEventAttributes{
-				TaskQueue: &taskqueuepb.TaskQueue{Name: taskQueue},
-			}),
+			createTestEventWorkflowExecutionStarted(1, historypb.WorkflowExecutionStartedEventAttributes_builder{
+				TaskQueue: taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
+			}.Build()),
 			createTestEventWorkflowTaskScheduled(2, &historypb.WorkflowTaskScheduledEventAttributes{}),
 			createTestEventWorkflowTaskStarted(3),
 		}
@@ -147,13 +147,13 @@ func (s *WorkersTestSuite) TestWorkflowWorkerSlotSupplier() {
 		workflowID := "testID"
 		runID := "testRunID"
 
-		task := &workflowservice.PollWorkflowTaskQueueResponse{
+		task := workflowservice.PollWorkflowTaskQueueResponse_builder{
 			TaskToken:              []byte("test-token"),
-			WorkflowExecution:      &commonpb.WorkflowExecution{WorkflowId: workflowID, RunId: runID},
-			WorkflowType:           &commonpb.WorkflowType{Name: workflowType},
-			History:                &historypb.History{Events: testEvents},
+			WorkflowExecution:      commonpb.WorkflowExecution_builder{WorkflowId: workflowID, RunId: runID}.Build(),
+			WorkflowType:           commonpb.WorkflowType_builder{Name: workflowType}.Build(),
+			History:                historypb.History_builder{Events: testEvents}.Build(),
 			PreviousStartedEventId: 0,
-		}
+		}.Build()
 
 		unblockPollCh := make(chan struct{})
 		pollRespondedCh := make(chan struct{})
@@ -213,13 +213,13 @@ func (s *WorkersTestSuite) TestActivityWorkerSlotSupplier() {
 	for i := 0; i < 50; i++ {
 		s.SetupTest()
 
-		task := &workflowservice.PollActivityTaskQueueResponse{
+		task := workflowservice.PollActivityTaskQueueResponse_builder{
 			TaskToken:         []byte("test-token"),
-			WorkflowExecution: &commonpb.WorkflowExecution{WorkflowId: workflowID, RunId: runID},
-			WorkflowType:      &commonpb.WorkflowType{Name: workflowType},
+			WorkflowExecution: commonpb.WorkflowExecution_builder{WorkflowId: workflowID, RunId: runID}.Build(),
+			WorkflowType:      commonpb.WorkflowType_builder{Name: workflowType}.Build(),
 			ActivityId:        "activityID",
-			ActivityType:      &commonpb.ActivityType{Name: "activityType"},
-		}
+			ActivityType:      commonpb.ActivityType_builder{Name: "activityType"}.Build(),
+		}.Build()
 
 		unblockPollCh := make(chan struct{})
 		pollRespondedCh := make(chan struct{})
@@ -293,13 +293,13 @@ func (s *SometimesFailSlotSupplier) MaxSlots() int                 { return 0 }
 func (s *WorkersTestSuite) TestErrorProneSlotSupplier() {
 	s.SetupTest()
 
-	task := &workflowservice.PollActivityTaskQueueResponse{
+	task := workflowservice.PollActivityTaskQueueResponse_builder{
 		TaskToken:         []byte("test-token"),
-		WorkflowExecution: &commonpb.WorkflowExecution{WorkflowId: workflowID, RunId: runID},
-		WorkflowType:      &commonpb.WorkflowType{Name: workflowType},
+		WorkflowExecution: commonpb.WorkflowExecution_builder{WorkflowId: workflowID, RunId: runID}.Build(),
+		WorkflowType:      commonpb.WorkflowType_builder{Name: workflowType}.Build(),
 		ActivityId:        "activityID",
-		ActivityType:      &commonpb.ActivityType{Name: "activityType"},
-	}
+		ActivityType:      commonpb.ActivityType_builder{Name: "activityType"}.Build(),
+	}.Build()
 
 	unblockPollCh := make(chan struct{})
 	pollRespondedCh := make(chan struct{})
@@ -375,24 +375,24 @@ func (s *WorkersTestSuite) TestActivityWorker() {
 func (s *WorkersTestSuite) TestActivityWorkerStop() {
 	now := time.Now()
 
-	pats := &workflowservice.PollActivityTaskQueueResponse{
+	pats := workflowservice.PollActivityTaskQueueResponse_builder{
 		Attempt:   1,
 		TaskToken: []byte("token"),
-		WorkflowExecution: &commonpb.WorkflowExecution{
+		WorkflowExecution: commonpb.WorkflowExecution_builder{
 			WorkflowId: "wID",
 			RunId:      "rID",
-		},
-		ActivityType:           &commonpb.ActivityType{Name: "test"},
+		}.Build(),
+		ActivityType:           commonpb.ActivityType_builder{Name: "test"}.Build(),
 		ActivityId:             uuid.NewString(),
 		ScheduledTime:          timestamppb.New(now),
 		ScheduleToCloseTimeout: durationpb.New(1 * time.Second),
 		StartedTime:            timestamppb.New(now),
 		StartToCloseTimeout:    durationpb.New(1 * time.Second),
-		WorkflowType: &commonpb.WorkflowType{
+		WorkflowType: commonpb.WorkflowType_builder{
 			Name: "wType",
-		},
+		}.Build(),
 		WorkflowNamespace: "namespace",
-	}
+	}.Build()
 
 	s.service.EXPECT().DescribeNamespace(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil)
 	s.service.EXPECT().PollActivityTaskQueue(gomock.Any(), gomock.Any(), gomock.Any()).Return(pats, nil).AnyTimes()
@@ -491,60 +491,60 @@ func (s *WorkersTestSuite) TestLongRunningWorkflowTask() {
 
 	taskQueue := "long-running-workflow-task-tq"
 	testEvents := []*historypb.HistoryEvent{
-		{
+		historypb.HistoryEvent_builder{
 			EventId:   1,
 			EventType: enumspb.EVENT_TYPE_WORKFLOW_EXECUTION_STARTED,
-			Attributes: &historypb.HistoryEvent_WorkflowExecutionStartedEventAttributes{WorkflowExecutionStartedEventAttributes: &historypb.WorkflowExecutionStartedEventAttributes{
-				TaskQueue:                &taskqueuepb.TaskQueue{Name: taskQueue},
+			WorkflowExecutionStartedEventAttributes: historypb.WorkflowExecutionStartedEventAttributes_builder{
+				TaskQueue:                taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
 				WorkflowExecutionTimeout: durationpb.New(10 * time.Second),
 				WorkflowRunTimeout:       durationpb.New(10 * time.Second),
 				WorkflowTaskTimeout:      durationpb.New(2 * time.Second),
-				WorkflowType:             &commonpb.WorkflowType{Name: "long-running-workflow-task-workflow-type"},
-			}},
-		},
-		createTestEventWorkflowTaskScheduled(2, &historypb.WorkflowTaskScheduledEventAttributes{TaskQueue: &taskqueuepb.TaskQueue{Name: taskQueue}}),
+				WorkflowType:             commonpb.WorkflowType_builder{Name: "long-running-workflow-task-workflow-type"}.Build(),
+			}.Build(),
+		}.Build(),
+		createTestEventWorkflowTaskScheduled(2, historypb.WorkflowTaskScheduledEventAttributes_builder{TaskQueue: taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build()}.Build()),
 		createTestEventWorkflowTaskStarted(3),
-		createTestEventWorkflowTaskCompleted(4, &historypb.WorkflowTaskCompletedEventAttributes{ScheduledEventId: 2}),
-		{
+		createTestEventWorkflowTaskCompleted(4, historypb.WorkflowTaskCompletedEventAttributes_builder{ScheduledEventId: 2}.Build()),
+		historypb.HistoryEvent_builder{
 			EventId:   5,
 			EventType: enumspb.EVENT_TYPE_MARKER_RECORDED,
-			Attributes: &historypb.HistoryEvent_MarkerRecordedEventAttributes{MarkerRecordedEventAttributes: &historypb.MarkerRecordedEventAttributes{
+			MarkerRecordedEventAttributes: historypb.MarkerRecordedEventAttributes_builder{
 				MarkerName:                   localActivityMarkerName,
 				Details:                      s.createLocalActivityMarkerDataForTest("0"),
 				WorkflowTaskCompletedEventId: 4,
-			}},
-		},
-		createTestEventWorkflowTaskScheduled(6, &historypb.WorkflowTaskScheduledEventAttributes{TaskQueue: &taskqueuepb.TaskQueue{Name: taskQueue}}),
+			}.Build(),
+		}.Build(),
+		createTestEventWorkflowTaskScheduled(6, historypb.WorkflowTaskScheduledEventAttributes_builder{TaskQueue: taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build()}.Build()),
 		createTestEventWorkflowTaskStarted(7),
-		createTestEventWorkflowTaskCompleted(8, &historypb.WorkflowTaskCompletedEventAttributes{ScheduledEventId: 2}),
-		{
+		createTestEventWorkflowTaskCompleted(8, historypb.WorkflowTaskCompletedEventAttributes_builder{ScheduledEventId: 2}.Build()),
+		historypb.HistoryEvent_builder{
 			EventId:   9,
 			EventType: enumspb.EVENT_TYPE_MARKER_RECORDED,
-			Attributes: &historypb.HistoryEvent_MarkerRecordedEventAttributes{MarkerRecordedEventAttributes: &historypb.MarkerRecordedEventAttributes{
+			MarkerRecordedEventAttributes: historypb.MarkerRecordedEventAttributes_builder{
 				MarkerName:                   localActivityMarkerName,
 				Details:                      s.createLocalActivityMarkerDataForTest("1"),
 				WorkflowTaskCompletedEventId: 8,
-			}},
-		},
-		createTestEventWorkflowTaskScheduled(10, &historypb.WorkflowTaskScheduledEventAttributes{TaskQueue: &taskqueuepb.TaskQueue{Name: taskQueue}}),
+			}.Build(),
+		}.Build(),
+		createTestEventWorkflowTaskScheduled(10, historypb.WorkflowTaskScheduledEventAttributes_builder{TaskQueue: taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build()}.Build()),
 		createTestEventWorkflowTaskStarted(11),
 	}
 
 	s.service.EXPECT().DescribeNamespace(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
-	task := &workflowservice.PollWorkflowTaskQueueResponse{
+	task := workflowservice.PollWorkflowTaskQueueResponse_builder{
 		TaskToken: []byte("test-token"),
-		WorkflowExecution: &commonpb.WorkflowExecution{
+		WorkflowExecution: commonpb.WorkflowExecution_builder{
 			WorkflowId: "long-running-workflow-task-workflow-id",
 			RunId:      "long-running-workflow-task-workflow-run-id",
-		},
-		WorkflowType: &commonpb.WorkflowType{
+		}.Build(),
+		WorkflowType: commonpb.WorkflowType_builder{
 			Name: "long-running-workflow-task-workflow-type",
-		},
+		}.Build(),
 		PreviousStartedEventId: 0,
 		StartedEventId:         3,
-		History:                &historypb.History{Events: testEvents[0:3]},
+		History:                historypb.History_builder{Events: testEvents[0:3]}.Build(),
 		NextPageToken:          nil,
-	}
+	}.Build()
 	s.service.EXPECT().PollWorkflowTaskQueue(gomock.Any(), gomock.Any(), gomock.Any()).Return(&workflowservice.PollWorkflowTaskQueueResponse{}, serviceerror.NewInvalidArgument("")).Times(1)
 	s.service.EXPECT().PollWorkflowTaskQueue(gomock.Any(), gomock.Any(), gomock.Any()).Return(task, nil).Times(1)
 	s.service.EXPECT().PollWorkflowTaskQueue(gomock.Any(), gomock.Any(), gomock.Any()).Return(&workflowservice.PollWorkflowTaskQueueResponse{}, serviceerror.NewInternal("")).AnyTimes()
@@ -556,19 +556,19 @@ func (s *WorkersTestSuite) TestLongRunningWorkflowTask() {
 		respondCounter++
 		switch respondCounter {
 		case 1:
-			s.Equal(1, len(request.Commands))
-			s.Equal(enumspb.COMMAND_TYPE_RECORD_MARKER, request.Commands[0].GetCommandType())
-			task.PreviousStartedEventId = 3
-			task.StartedEventId = 7
-			task.History.Events = testEvents[3:7]
-			return &workflowservice.RespondWorkflowTaskCompletedResponse{WorkflowTask: task}, nil
+			s.Equal(1, len(request.GetCommands()))
+			s.Equal(enumspb.COMMAND_TYPE_RECORD_MARKER, request.GetCommands()[0].GetCommandType())
+			task.SetPreviousStartedEventId(3)
+			task.SetStartedEventId(7)
+			task.GetHistory().SetEvents(testEvents[3:7])
+			return workflowservice.RespondWorkflowTaskCompletedResponse_builder{WorkflowTask: task}.Build(), nil
 		case 2:
-			s.Equal(2, len(request.Commands))
-			s.Equal(enumspb.COMMAND_TYPE_RECORD_MARKER, request.Commands[0].GetCommandType())
-			s.Equal(enumspb.COMMAND_TYPE_COMPLETE_WORKFLOW_EXECUTION, request.Commands[1].GetCommandType())
-			task.PreviousStartedEventId = 7
-			task.StartedEventId = 11
-			task.History.Events = testEvents[7:11]
+			s.Equal(2, len(request.GetCommands()))
+			s.Equal(enumspb.COMMAND_TYPE_RECORD_MARKER, request.GetCommands()[0].GetCommandType())
+			s.Equal(enumspb.COMMAND_TYPE_COMPLETE_WORKFLOW_EXECUTION, request.GetCommands()[1].GetCommandType())
+			task.SetPreviousStartedEventId(7)
+			task.SetStartedEventId(11)
+			task.GetHistory().SetEvents(testEvents[7:11])
 			close(doneCh)
 			return nil, nil
 		default:
@@ -632,60 +632,60 @@ func (s *WorkersTestSuite) TestMultipleLocalActivities() {
 
 	taskQueue := "multiple-local-activities-tq"
 	testEvents := []*historypb.HistoryEvent{
-		{
+		historypb.HistoryEvent_builder{
 			EventId:   1,
 			EventType: enumspb.EVENT_TYPE_WORKFLOW_EXECUTION_STARTED,
-			Attributes: &historypb.HistoryEvent_WorkflowExecutionStartedEventAttributes{WorkflowExecutionStartedEventAttributes: &historypb.WorkflowExecutionStartedEventAttributes{
-				TaskQueue:                &taskqueuepb.TaskQueue{Name: taskQueue},
+			WorkflowExecutionStartedEventAttributes: historypb.WorkflowExecutionStartedEventAttributes_builder{
+				TaskQueue:                taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
 				WorkflowExecutionTimeout: durationpb.New(10 * time.Second),
 				WorkflowRunTimeout:       durationpb.New(10 * time.Second),
 				WorkflowTaskTimeout:      durationpb.New(3 * time.Second),
-				WorkflowType:             &commonpb.WorkflowType{Name: "multiple-local-activities-workflow-type"},
-			}},
-		},
-		createTestEventWorkflowTaskScheduled(2, &historypb.WorkflowTaskScheduledEventAttributes{TaskQueue: &taskqueuepb.TaskQueue{Name: taskQueue}}),
+				WorkflowType:             commonpb.WorkflowType_builder{Name: "multiple-local-activities-workflow-type"}.Build(),
+			}.Build(),
+		}.Build(),
+		createTestEventWorkflowTaskScheduled(2, historypb.WorkflowTaskScheduledEventAttributes_builder{TaskQueue: taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build()}.Build()),
 		createTestEventWorkflowTaskStarted(3),
-		createTestEventWorkflowTaskCompleted(4, &historypb.WorkflowTaskCompletedEventAttributes{ScheduledEventId: 2}),
-		{
+		createTestEventWorkflowTaskCompleted(4, historypb.WorkflowTaskCompletedEventAttributes_builder{ScheduledEventId: 2}.Build()),
+		historypb.HistoryEvent_builder{
 			EventId:   5,
 			EventType: enumspb.EVENT_TYPE_MARKER_RECORDED,
-			Attributes: &historypb.HistoryEvent_MarkerRecordedEventAttributes{MarkerRecordedEventAttributes: &historypb.MarkerRecordedEventAttributes{
+			MarkerRecordedEventAttributes: historypb.MarkerRecordedEventAttributes_builder{
 				MarkerName:                   localActivityMarkerName,
 				Details:                      s.createLocalActivityMarkerDataForTest("0"),
 				WorkflowTaskCompletedEventId: 4,
-			}},
-		},
-		createTestEventWorkflowTaskScheduled(6, &historypb.WorkflowTaskScheduledEventAttributes{TaskQueue: &taskqueuepb.TaskQueue{Name: taskQueue}}),
+			}.Build(),
+		}.Build(),
+		createTestEventWorkflowTaskScheduled(6, historypb.WorkflowTaskScheduledEventAttributes_builder{TaskQueue: taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build()}.Build()),
 		createTestEventWorkflowTaskStarted(7),
-		createTestEventWorkflowTaskCompleted(8, &historypb.WorkflowTaskCompletedEventAttributes{ScheduledEventId: 2}),
-		{
+		createTestEventWorkflowTaskCompleted(8, historypb.WorkflowTaskCompletedEventAttributes_builder{ScheduledEventId: 2}.Build()),
+		historypb.HistoryEvent_builder{
 			EventId:   9,
 			EventType: enumspb.EVENT_TYPE_MARKER_RECORDED,
-			Attributes: &historypb.HistoryEvent_MarkerRecordedEventAttributes{MarkerRecordedEventAttributes: &historypb.MarkerRecordedEventAttributes{
+			MarkerRecordedEventAttributes: historypb.MarkerRecordedEventAttributes_builder{
 				MarkerName:                   localActivityMarkerName,
 				Details:                      s.createLocalActivityMarkerDataForTest("1"),
 				WorkflowTaskCompletedEventId: 8,
-			}},
-		},
-		createTestEventWorkflowTaskScheduled(10, &historypb.WorkflowTaskScheduledEventAttributes{TaskQueue: &taskqueuepb.TaskQueue{Name: taskQueue}}),
+			}.Build(),
+		}.Build(),
+		createTestEventWorkflowTaskScheduled(10, historypb.WorkflowTaskScheduledEventAttributes_builder{TaskQueue: taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build()}.Build()),
 		createTestEventWorkflowTaskStarted(11),
 	}
 
 	s.service.EXPECT().DescribeNamespace(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
-	task := &workflowservice.PollWorkflowTaskQueueResponse{
+	task := workflowservice.PollWorkflowTaskQueueResponse_builder{
 		TaskToken: []byte("test-token"),
-		WorkflowExecution: &commonpb.WorkflowExecution{
+		WorkflowExecution: commonpb.WorkflowExecution_builder{
 			WorkflowId: "multiple-local-activities-workflow-id",
 			RunId:      "multiple-local-activities-workflow-run-id",
-		},
-		WorkflowType: &commonpb.WorkflowType{
+		}.Build(),
+		WorkflowType: commonpb.WorkflowType_builder{
 			Name: "multiple-local-activities-workflow-type",
-		},
+		}.Build(),
 		PreviousStartedEventId: 0,
 		StartedEventId:         3,
-		History:                &historypb.History{Events: testEvents[0:3]},
+		History:                historypb.History_builder{Events: testEvents[0:3]}.Build(),
 		NextPageToken:          nil,
-	}
+	}.Build()
 	s.service.EXPECT().PollWorkflowTaskQueue(gomock.Any(), gomock.Any(), gomock.Any()).Return(task, nil).Times(1)
 	s.service.EXPECT().PollWorkflowTaskQueue(gomock.Any(), gomock.Any(), gomock.Any()).Return(&workflowservice.PollWorkflowTaskQueueResponse{}, serviceerror.NewInternal("")).AnyTimes()
 	s.service.EXPECT().PollActivityTaskQueue(gomock.Any(), gomock.Any(), gomock.Any()).Return(&workflowservice.PollActivityTaskQueueResponse{}, nil).AnyTimes()
@@ -696,11 +696,11 @@ func (s *WorkersTestSuite) TestMultipleLocalActivities() {
 		respondCounter++
 		switch respondCounter {
 		case 1:
-			s.Equal(3, len(request.Commands))
-			s.Equal(enumspb.COMMAND_TYPE_RECORD_MARKER, request.Commands[0].GetCommandType())
-			task.PreviousStartedEventId = 3
-			task.StartedEventId = 7
-			task.History.Events = testEvents[3:11]
+			s.Equal(3, len(request.GetCommands()))
+			s.Equal(enumspb.COMMAND_TYPE_RECORD_MARKER, request.GetCommands()[0].GetCommandType())
+			task.SetPreviousStartedEventId(3)
+			task.SetStartedEventId(7)
+			task.GetHistory().SetEvents(testEvents[3:11])
 			close(doneCh)
 			return nil, nil
 		default:

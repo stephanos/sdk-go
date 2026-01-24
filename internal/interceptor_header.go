@@ -35,8 +35,8 @@ func contextWithHeaderPropagated(
 	if header == nil {
 		header = &commonpb.Header{}
 	}
-	if header.Fields == nil {
-		header.Fields = map[string]*commonpb.Payload{}
+	if header.GetFields() == nil {
+		header.SetFields(map[string]*commonpb.Payload{})
 	}
 	reader := NewHeaderReader(header)
 	for _, ctxProp := range ctxProps {
@@ -45,12 +45,12 @@ func contextWithHeaderPropagated(
 			return nil, fmt.Errorf("failed propagating header: %w", err)
 		}
 	}
-	return context.WithValue(ctx, headerKey{}, header.Fields), nil
+	return context.WithValue(ctx, headerKey{}, header.GetFields()), nil
 }
 
 func headerPropagated(ctx context.Context, ctxProps []ContextPropagator) (*commonpb.Header, error) {
-	header := &commonpb.Header{Fields: Header(ctx)}
-	if header.Fields == nil {
+	header := commonpb.Header_builder{Fields: Header(ctx)}.Build()
+	if header.GetFields() == nil {
 		return nil, fmt.Errorf("context missing header")
 	}
 	writer := NewHeaderWriter(header)
@@ -88,8 +88,8 @@ func workflowContextWithHeaderPropagated(
 	if header == nil {
 		header = &commonpb.Header{}
 	}
-	if header.Fields == nil {
-		header.Fields = map[string]*commonpb.Payload{}
+	if header.GetFields() == nil {
+		header.SetFields(map[string]*commonpb.Payload{})
 	}
 	reader := NewHeaderReader(header)
 	for _, ctxProp := range ctxProps {
@@ -98,12 +98,12 @@ func workflowContextWithHeaderPropagated(
 			return nil, fmt.Errorf("failed propagating header: %w", err)
 		}
 	}
-	return WithValue(ctx, headerKey{}, header.Fields), nil
+	return WithValue(ctx, headerKey{}, header.GetFields()), nil
 }
 
 func workflowHeaderPropagated(ctx Context, ctxProps []ContextPropagator) (*commonpb.Header, error) {
-	header := &commonpb.Header{Fields: WorkflowHeader(ctx)}
-	if header.Fields == nil {
+	header := commonpb.Header_builder{Fields: WorkflowHeader(ctx)}.Build()
+	if header.GetFields() == nil {
 		return nil, fmt.Errorf("context missing workflow header")
 	}
 	writer := NewHeaderWriter(header)

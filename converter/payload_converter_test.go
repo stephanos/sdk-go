@@ -21,35 +21,35 @@ type testStruct struct {
 func TestProtoJsonPayloadConverter_Google(t *testing.T) {
 	pc := NewProtoJSONPayloadConverter()
 
-	wt := &historypb.HistoryEvent{
+	wt := historypb.HistoryEvent_builder{
 		EventId:   1978,
 		EventType: enumspb.EVENT_TYPE_WORKFLOW_TASK_TIMED_OUT,
-		Attributes: &historypb.HistoryEvent_WorkflowTaskTimedOutEventAttributes{WorkflowTaskTimedOutEventAttributes: &historypb.WorkflowTaskTimedOutEventAttributes{
+		WorkflowTaskTimedOutEventAttributes: historypb.WorkflowTaskTimedOutEventAttributes_builder{
 			ScheduledEventId: 2,
 			TimeoutType:      enumspb.TIMEOUT_TYPE_SCHEDULE_TO_START,
-		}}}
+		}.Build()}.Build()
 	payload, err := pc.ToPayload(wt)
 	require.NoError(t, err)
 	wt2 := &historypb.HistoryEvent{}
 	err = pc.FromPayload(payload, &wt2)
 	require.NoError(t, err)
-	assert.Equal(t, int64(1978), wt2.EventId)
+	assert.Equal(t, int64(1978), wt2.GetEventId())
 
 	var wt3 *historypb.HistoryEvent
 	err = pc.FromPayload(payload, &wt3)
 	require.NoError(t, err)
-	assert.Equal(t, int64(1978), wt3.EventId)
+	assert.Equal(t, int64(1978), wt3.GetEventId())
 
 	var wt4 historypb.HistoryEvent
 	err = pc.FromPayload(payload, &wt4)
 	require.NoError(t, err)
-	assert.Equal(t, int64(1978), wt3.EventId)
+	assert.Equal(t, int64(1978), wt3.GetEventId())
 
 	s := pc.ToString(payload)
 	assert.JSONEq(t, `{"eventId":"1978","eventType":"EVENT_TYPE_WORKFLOW_TASK_TIMED_OUT","workflowTaskTimedOutEventAttributes":{"scheduledEventId":"2","timeoutType":"TIMEOUT_TYPE_SCHEDULE_TO_START"}}`, s)
 
 	// Add additional field to payload data
-	payload.Data = []byte(`{"eventId":"1978","eventType":"EVENT_TYPE_WORKFLOW_TASK_TIMED_OUT","workflowTaskTimedOutEventAttributes":{"scheduledEventId":"2","timeoutType":"TIMEOUT_TYPE_SCHEDULE_TO_START"},"newField":"newValue"}`)
+	payload.SetData([]byte(`{"eventId":"1978","eventType":"EVENT_TYPE_WORKFLOW_TASK_TIMED_OUT","workflowTaskTimedOutEventAttributes":{"scheduledEventId":"2","timeoutType":"TIMEOUT_TYPE_SCHEDULE_TO_START"},"newField":"newValue"}`))
 	// Should fail, unknown field
 	wt5 := &Gogo{}
 	err = pc.FromPayload(payload, &wt5)
@@ -97,7 +97,7 @@ func TestProtoJsonPayloadConverter_Gogo(t *testing.T) {
 	assert.Equal(t, `{"name":"qwe","birthday":"12","type":"TYPEGOGO_R","valueS":"asd"}`, strings.Replace(s, " ", "", -1))
 
 	// Add additional field to payload data
-	payload.Data = []byte(`{"name":"qwe","birthday":"12","type":"TYPEGOGO_R","valueS":"asd","newField":"newValue"}`)
+	payload.SetData([]byte(`{"name":"qwe","birthday":"12","type":"TYPEGOGO_R","valueS":"asd","newField":"newValue"}`))
 	// Should fail, unknown field
 	wt5 := &Gogo{}
 	err = pc.FromPayload(payload, &wt5)
@@ -115,33 +115,33 @@ func TestProtoJsonPayloadConverter_Gogo(t *testing.T) {
 func TestProtoPayloadConverter_Google(t *testing.T) {
 	pc := NewProtoPayloadConverter()
 
-	wt := &historypb.HistoryEvent{
+	wt := historypb.HistoryEvent_builder{
 		EventId:   1978,
 		EventType: enumspb.EVENT_TYPE_WORKFLOW_TASK_TIMED_OUT,
-		Attributes: &historypb.HistoryEvent_WorkflowTaskTimedOutEventAttributes{WorkflowTaskTimedOutEventAttributes: &historypb.WorkflowTaskTimedOutEventAttributes{
+		WorkflowTaskTimedOutEventAttributes: historypb.WorkflowTaskTimedOutEventAttributes_builder{
 			ScheduledEventId: 2,
 			TimeoutType:      enumspb.TIMEOUT_TYPE_SCHEDULE_TO_START,
-		}}}
+		}.Build()}.Build()
 	payload, err := pc.ToPayload(wt)
 	require.NoError(t, err)
 	wt2 := &historypb.HistoryEvent{}
 	err = pc.FromPayload(payload, &wt2)
 	require.NoError(t, err)
-	assert.Equal(t, int64(1978), wt2.EventId)
+	assert.Equal(t, int64(1978), wt2.GetEventId())
 
 	var wt3 *historypb.HistoryEvent
 	err = pc.FromPayload(payload, &wt3)
 	require.NoError(t, err)
-	assert.Equal(t, int64(1978), wt3.EventId)
+	assert.Equal(t, int64(1978), wt3.GetEventId())
 
 	var wt4 historypb.HistoryEvent
 	err = pc.FromPayload(payload, &wt4)
 	require.NoError(t, err)
-	assert.Equal(t, int64(1978), wt4.EventId)
+	assert.Equal(t, int64(1978), wt4.GetEventId())
 
 	s := pc.ToString(payload)
 	assert.Equal(t, "CLoPGAhqBAgCGAI", s)
-	assert.Equal(t, "temporal.api.history.v1.HistoryEvent", string(payload.Metadata[MetadataMessageType]))
+	assert.Equal(t, "temporal.api.history.v1.HistoryEvent", string(payload.GetMetadata()[MetadataMessageType]))
 }
 
 func TestProtoPayloadConverter_Gogo(t *testing.T) {
@@ -172,7 +172,7 @@ func TestProtoPayloadConverter_Gogo(t *testing.T) {
 
 	s := pc.ToString(payload)
 	assert.Equal(t, "CgNxd2UQDDgBQgNhc2Q", s)
-	assert.Equal(t, "temporal.sdk.converter.Gogo", string(payload.Metadata[MetadataMessageType]))
+	assert.Equal(t, "temporal.sdk.converter.Gogo", string(payload.GetMetadata()[MetadataMessageType]))
 }
 
 func TestJsonPayloadConverter(t *testing.T) {
@@ -206,7 +206,7 @@ func TestProtoJsonPayloadConverter_Nil(t *testing.T) {
 	var wt1 *Gogo
 	payload, err := pc.ToPayload(wt1)
 	require.NoError(t, err)
-	assert.Equal(t, "null", string(payload.Data))
+	assert.Equal(t, "null", string(payload.GetData()))
 
 	wt1 = &Gogo{Name: "qwe"}
 	err = pc.FromPayload(payload, &wt1)
@@ -216,9 +216,9 @@ func TestProtoJsonPayloadConverter_Nil(t *testing.T) {
 	var wt2 *commonpb.WorkflowType
 	payload, err = pc.ToPayload(wt2)
 	require.NoError(t, err)
-	assert.Equal(t, "null", string(payload.Data))
+	assert.Equal(t, "null", string(payload.GetData()))
 
-	wt2 = &commonpb.WorkflowType{Name: "qwe"}
+	wt2 = commonpb.WorkflowType_builder{Name: "qwe"}.Build()
 	err = pc.FromPayload(payload, &wt2)
 	require.NoError(t, err)
 	assert.Nil(t, wt2)
@@ -226,7 +226,7 @@ func TestProtoJsonPayloadConverter_Nil(t *testing.T) {
 	var wt3 interface{}
 	payload, err = pc.ToPayload(wt3)
 	require.NoError(t, err)
-	assert.Equal(t, "null", string(payload.Data))
+	assert.Equal(t, "null", string(payload.GetData()))
 
 	wt3 = 123
 	err = pc.FromPayload(payload, &wt3)
@@ -236,7 +236,7 @@ func TestProtoJsonPayloadConverter_Nil(t *testing.T) {
 	var wt4 *interface{}
 	payload, err = pc.ToPayload(wt4)
 	require.NoError(t, err)
-	assert.Equal(t, "null", string(payload.Data))
+	assert.Equal(t, "null", string(payload.GetData()))
 
 	i := interface{}(123)
 	wt4 = &i
@@ -251,7 +251,7 @@ func TestJsonPayloadConverter_Nil(t *testing.T) {
 	var wt1 *testStruct
 	payload, err := pc.ToPayload(wt1)
 	require.NoError(t, err)
-	assert.Equal(t, "null", string(payload.Data))
+	assert.Equal(t, "null", string(payload.GetData()))
 
 	wt1 = &testStruct{Name: "qwe"}
 	err = pc.FromPayload(payload, &wt1)
@@ -261,7 +261,7 @@ func TestJsonPayloadConverter_Nil(t *testing.T) {
 	var wt3 interface{}
 	payload, err = pc.ToPayload(wt3)
 	require.NoError(t, err)
-	assert.Equal(t, "null", string(payload.Data))
+	assert.Equal(t, "null", string(payload.GetData()))
 
 	wt3 = 123
 	err = pc.FromPayload(payload, &wt3)
@@ -271,7 +271,7 @@ func TestJsonPayloadConverter_Nil(t *testing.T) {
 	var wt4 *interface{}
 	payload, err = pc.ToPayload(wt4)
 	require.NoError(t, err)
-	assert.Equal(t, "null", string(payload.Data))
+	assert.Equal(t, "null", string(payload.GetData()))
 
 	i := interface{}(123)
 	wt4 = &i
@@ -286,7 +286,7 @@ func TestNilPayloadConverter(t *testing.T) {
 	var wt1 *testStruct
 	payload, err := pc.ToPayload(wt1)
 	require.NoError(t, err)
-	assert.Nil(t, payload.Data)
+	assert.Nil(t, payload.GetData())
 
 	wt1 = &testStruct{Name: "qwe"}
 	err = pc.FromPayload(payload, &wt1)
@@ -296,7 +296,7 @@ func TestNilPayloadConverter(t *testing.T) {
 	var wt3 interface{}
 	payload, err = pc.ToPayload(wt3)
 	require.NoError(t, err)
-	assert.Nil(t, payload.Data)
+	assert.Nil(t, payload.GetData())
 
 	wt3 = 123
 	err = pc.FromPayload(payload, &wt3)
@@ -306,7 +306,7 @@ func TestNilPayloadConverter(t *testing.T) {
 	var wt4 *interface{}
 	payload, err = pc.ToPayload(wt4)
 	require.NoError(t, err)
-	assert.Nil(t, payload.Data)
+	assert.Nil(t, payload.GetData())
 
 	i := interface{}(123)
 	wt4 = &i
@@ -318,30 +318,30 @@ func TestNilPayloadConverter(t *testing.T) {
 func TestProtoPayloadConverter_WithOptions(t *testing.T) {
 	pc := NewProtoPayloadConverterWithOptions(ProtoPayloadConverterOptions{ExcludeProtobufMessageTypes: true})
 
-	wt := commonpb.WorkflowType{Name: "qwe"}
-	payload, err := pc.ToPayload(&wt)
+	wt := commonpb.WorkflowType_builder{Name: "qwe"}.Build()
+	payload, err := pc.ToPayload(wt)
 	require.NoError(t, err)
 
-	_, ok := payload.Metadata[MetadataMessageType]
+	_, ok := payload.GetMetadata()[MetadataMessageType]
 	assert.False(t, ok)
 }
 
 func TestProtoJSONPayloadConverter_WithOptions(t *testing.T) {
 	pc := NewProtoJSONPayloadConverterWithOptions(ProtoJSONPayloadConverterOptions{ExcludeProtobufMessageTypes: true})
 
-	wt := commonpb.WorkflowType{Name: "qwe"}
-	payload, err := pc.ToPayload(&wt)
+	wt := commonpb.WorkflowType_builder{Name: "qwe"}.Build()
+	payload, err := pc.ToPayload(wt)
 	require.NoError(t, err)
 
-	_, ok := payload.Metadata[MetadataMessageType]
+	_, ok := payload.GetMetadata()[MetadataMessageType]
 	assert.False(t, ok)
 }
 
 func TestProtoJsonPayloadConverter_FromPayload_Errors(t *testing.T) {
 	pc := NewProtoJSONPayloadConverter()
 
-	wt := commonpb.WorkflowType{Name: "qwe"}
-	payload, err := pc.ToPayload(&wt)
+	wt := commonpb.WorkflowType_builder{Name: "qwe"}.Build()
+	payload, err := pc.ToPayload(wt)
 	require.NoError(t, err)
 
 	var wt2 *int
@@ -360,18 +360,18 @@ func TestProtoJsonPayloadConverter_FromPayload_Errors(t *testing.T) {
 	var wt31 commonpb.WorkflowType
 	err = pc.FromPayload(payload, &wt31)
 	require.NoError(t, err)
-	assert.Equal(t, "qwe", wt31.Name)
+	assert.Equal(t, "qwe", wt31.GetName())
 
 	wt32 := &commonpb.WorkflowType{}
 	err = pc.FromPayload(payload, wt32)
 	require.NoError(t, err)
-	assert.Equal(t, "qwe", wt32.Name)
+	assert.Equal(t, "qwe", wt32.GetName())
 
 	var wt33 *commonpb.WorkflowType //lint:ignore S1021 as it indicates exactly this case
 	wt33 = &commonpb.WorkflowType{}
 	err = pc.FromPayload(payload, wt33)
 	require.NoError(t, err)
-	assert.Equal(t, "qwe", wt33.Name)
+	assert.Equal(t, "qwe", wt33.GetName())
 
 	var wt5 interface{}
 	err = pc.FromPayload(payload, wt5)
@@ -408,8 +408,8 @@ func TestProtoJsonPayloadConverter_FromPayload_Errors(t *testing.T) {
 func TestProtoPayloadConverter_FromPayload_Errors(t *testing.T) {
 	pc := NewProtoPayloadConverter()
 
-	wt := commonpb.WorkflowType{Name: "qwe"}
-	payload, err := pc.ToPayload(&wt)
+	wt := commonpb.WorkflowType_builder{Name: "qwe"}.Build()
+	payload, err := pc.ToPayload(wt)
 	require.NoError(t, err)
 
 	var wt2 *int
@@ -428,18 +428,18 @@ func TestProtoPayloadConverter_FromPayload_Errors(t *testing.T) {
 	var wt31 commonpb.WorkflowType
 	err = pc.FromPayload(payload, &wt31)
 	require.NoError(t, err)
-	assert.Equal(t, "qwe", wt31.Name)
+	assert.Equal(t, "qwe", wt31.GetName())
 
 	wt32 := &commonpb.WorkflowType{}
 	err = pc.FromPayload(payload, wt32)
 	require.NoError(t, err)
-	assert.Equal(t, "qwe", wt32.Name)
+	assert.Equal(t, "qwe", wt32.GetName())
 
 	var wt33 *commonpb.WorkflowType //lint:ignore S1021 as it indicates exactly this case
 	wt33 = &commonpb.WorkflowType{}
 	err = pc.FromPayload(payload, wt33)
 	require.NoError(t, err)
-	assert.Equal(t, "qwe", wt33.Name)
+	assert.Equal(t, "qwe", wt33.GetName())
 
 	var wt5 interface{}
 	err = pc.FromPayload(payload, wt5)

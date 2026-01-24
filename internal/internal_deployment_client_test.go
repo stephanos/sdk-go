@@ -61,21 +61,21 @@ func (d *deploymentClientTestSuite) TestSetCurrentDeployment() {
 		Do(func(_ interface{}, req *workflowservice.SetCurrentDeploymentRequest, _ ...interface{}) {
 			var resultMeta string
 			// verify the metadata
-			err := d.dataConverter.FromPayload(req.UpdateMetadata.UpsertEntries["data1"], &resultMeta)
+			err := d.dataConverter.FromPayload(req.GetUpdateMetadata().GetUpsertEntries()["data1"], &resultMeta)
 			d.NoError(err)
 			d.Equal("metadata 1", resultMeta)
 
-			d.Equal(req.UpdateMetadata.RemoveEntries, []string{"never"})
-			d.Equal(req.Deployment.BuildId, "bid1")
-			d.Equal(req.Deployment.SeriesName, "series1")
+			d.Equal(req.GetUpdateMetadata().GetRemoveEntries(), []string{"never"})
+			d.Equal(req.GetDeployment().GetBuildId(), "bid1")
+			d.Equal(req.GetDeployment().GetSeriesName(), "series1")
 		})
 	_, _ = d.client.DeploymentClient().SetCurrent(context.Background(), options)
 }
 
 func getListDeploymentsRequest() *workflowservice.ListDeploymentsRequest {
-	request := &workflowservice.ListDeploymentsRequest{
+	request := workflowservice.ListDeploymentsRequest_builder{
 		Namespace: DefaultNamespace,
-	}
+	}.Build()
 
 	return request
 }
@@ -84,35 +84,35 @@ func getListDeploymentsRequest() *workflowservice.ListDeploymentsRequest {
 
 func (d *deploymentClientTestSuite) TestDeploymentIterator_NoError() {
 	request1 := getListDeploymentsRequest()
-	response1 := &workflowservice.ListDeploymentsResponse{
+	response1 := workflowservice.ListDeploymentsResponse_builder{
 		Deployments: []*deploymentpb.DeploymentListInfo{
-			{
+			deploymentpb.DeploymentListInfo_builder{
 				IsCurrent: false,
-			},
+			}.Build(),
 		},
 		NextPageToken: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
-	}
+	}.Build()
 	request2 := getListDeploymentsRequest()
-	request2.NextPageToken = response1.NextPageToken
-	response2 := &workflowservice.ListDeploymentsResponse{
+	request2.SetNextPageToken(response1.GetNextPageToken())
+	response2 := workflowservice.ListDeploymentsResponse_builder{
 		Deployments: []*deploymentpb.DeploymentListInfo{
-			{
+			deploymentpb.DeploymentListInfo_builder{
 				IsCurrent: false,
-			},
+			}.Build(),
 		},
 		NextPageToken: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
-	}
+	}.Build()
 
 	request3 := getListDeploymentsRequest()
-	request3.NextPageToken = response2.NextPageToken
-	response3 := &workflowservice.ListDeploymentsResponse{
+	request3.SetNextPageToken(response2.GetNextPageToken())
+	response3 := workflowservice.ListDeploymentsResponse_builder{
 		Deployments: []*deploymentpb.DeploymentListInfo{
-			{
+			deploymentpb.DeploymentListInfo_builder{
 				IsCurrent: false,
-			},
+			}.Build(),
 		},
 		NextPageToken: nil,
-	}
+	}.Build()
 
 	d.service.EXPECT().ListDeployments(gomock.Any(), request1, gomock.Any()).Return(response1, nil).Times(1)
 	d.service.EXPECT().ListDeployments(gomock.Any(), request2, gomock.Any()).Return(response2, nil).Times(1)
@@ -130,17 +130,17 @@ func (d *deploymentClientTestSuite) TestDeploymentIterator_NoError() {
 
 func (d *deploymentClientTestSuite) TestIteratorError() {
 	request1 := getListDeploymentsRequest()
-	response1 := &workflowservice.ListDeploymentsResponse{
+	response1 := workflowservice.ListDeploymentsResponse_builder{
 		Deployments: []*deploymentpb.DeploymentListInfo{
-			{
+			deploymentpb.DeploymentListInfo_builder{
 				IsCurrent: false,
-			},
+			}.Build(),
 		},
 		NextPageToken: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
-	}
+	}.Build()
 
 	request2 := getListDeploymentsRequest()
-	request2.NextPageToken = response1.NextPageToken
+	request2.SetNextPageToken(response1.GetNextPageToken())
 
 	d.service.EXPECT().ListDeployments(gomock.Any(), request1, gomock.Any()).Return(response1, nil).Times(1)
 

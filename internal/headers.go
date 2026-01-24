@@ -59,7 +59,7 @@ func (hr *headerReader) ForEachKey(handler func(string, *commonpb.Payload) error
 	if hr.header == nil {
 		return nil
 	}
-	for key, value := range hr.header.Fields {
+	for key, value := range hr.header.GetFields() {
 		if err := handler(key, value); err != nil {
 			return err
 		}
@@ -71,7 +71,7 @@ func (hr *headerReader) Get(key string) (*commonpb.Payload, bool) {
 	if hr.header == nil {
 		return nil, false
 	}
-	payload, ok := hr.header.Fields[key]
+	payload, ok := hr.header.GetFields()[key]
 	return payload, ok
 }
 
@@ -88,13 +88,13 @@ func (hw *headerWriter) Set(key string, value *commonpb.Payload) {
 	if hw.header == nil {
 		return
 	}
-	hw.header.Fields[key] = value
+	hw.header.GetFields()[key] = value
 }
 
 // NewHeaderWriter returns a header writer interface
 func NewHeaderWriter(header *commonpb.Header) HeaderWriter {
-	if header != nil && header.Fields == nil {
-		header.Fields = make(map[string]*commonpb.Payload)
+	if header != nil && header.GetFields() == nil {
+		header.SetFields(make(map[string]*commonpb.Payload))
 	}
 	return &headerWriter{header: header}
 }

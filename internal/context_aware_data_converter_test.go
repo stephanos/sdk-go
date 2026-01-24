@@ -31,7 +31,7 @@ func (dc *ContextAwareDataConverter) ToPayload(value interface{}) (*commonpb.Pay
 		return payload, err
 	}
 	if dc.mask != "" {
-		payload.Data = bytes.ReplaceAll(payload.Data, []byte(dc.mask), []byte("?"))
+		payload.SetData(bytes.ReplaceAll(payload.GetData(), []byte(dc.mask), []byte("?")))
 	}
 
 	return payload, nil
@@ -46,7 +46,7 @@ func (dc *ContextAwareDataConverter) ToPayloads(values ...interface{}) (*commonp
 			return nil, fmt.Errorf("values[%d]: %w", i, err)
 		}
 
-		result.Payloads = append(result.Payloads, payload)
+		result.SetPayloads(append(result.GetPayloads(), payload))
 	}
 
 	return result, nil

@@ -42,14 +42,14 @@ func (dc *CompositeDataConverter) ToPayloads(values ...interface{}) (*commonpb.P
 	for i, value := range values {
 		rawValue, ok := value.(RawValue)
 		if ok {
-			result.Payloads = append(result.Payloads, rawValue.Payload())
+			result.SetPayloads(append(result.GetPayloads(), rawValue.Payload()))
 		} else {
 			payload, err := dc.ToPayload(value)
 			if err != nil {
 				return nil, fmt.Errorf("values[%d]: %w", i, err)
 			}
 
-			result.Payloads = append(result.Payloads, payload)
+			result.SetPayloads(append(result.GetPayloads(), payload))
 		}
 	}
 

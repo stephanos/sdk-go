@@ -325,7 +325,7 @@ func newTestWorkflowEnvironmentImpl(s *WorkflowTestSuite, parentRegistry *regist
 		failureConverter:       GetDefaultFailureConverter(),
 		runTimeout:             maxWorkflowTimeout,
 		bufferedUpdateRequests: make(map[string][]func()),
-		sdkFlags:               newSDKFlags(&workflowservice.GetSystemInfoResponse_Capabilities{SdkMetadata: true}),
+		sdkFlags:               newSDKFlags(workflowservice.GetSystemInfoResponse_Capabilities_builder{SdkMetadata: true}.Build()),
 	}
 
 	if debugMode {
@@ -353,7 +353,7 @@ func newTestWorkflowEnvironmentImpl(s *WorkflowTestSuite, parentRegistry *regist
 	mockService := workflowservicemock.NewMockWorkflowServiceClient(mockCtrl)
 
 	mockHeartbeatFn := func(c context.Context, r *workflowservice.RecordActivityTaskHeartbeatRequest, opts ...grpc.CallOption) error {
-		activityID := ActivityID{id: string(r.TaskToken)}
+		activityID := ActivityID{id: string(r.GetTaskToken())}
 		env.locker.Lock() // need lock as this is running in activity worker's goroutinue
 		activityHandle, ok := env.getActivityHandle(activityID.id, GetActivityInfo(c).WorkflowExecution.RunID)
 		if !ok {
@@ -362,7 +362,7 @@ func newTestWorkflowEnvironmentImpl(s *WorkflowTestSuite, parentRegistry *regist
 				tagActivityID, activityID)
 			return serviceerror.NewNotFound("")
 		}
-		activityHandle.heartbeatDetails = r.Details
+		activityHandle.heartbeatDetails = r.GetDetails()
 		activityHandle.lastHeartbeatTime = time.Now()
 		env.locker.Unlock()
 		activityInfo := env.getActivityInfo(activityID, activityHandle.activityType)
@@ -370,10 +370,10 @@ func newTestWorkflowEnvironmentImpl(s *WorkflowTestSuite, parentRegistry *regist
 			// If we're only in an activity environment, posted callbacks are not
 			// invoked
 			if env.activityEnvOnly {
-				env.onActivityHeartbeatListener(activityInfo, newEncodedValues(r.Details, env.GetDataConverter()))
+				env.onActivityHeartbeatListener(activityInfo, newEncodedValues(r.GetDetails(), env.GetDataConverter()))
 			} else {
 				env.postCallback(func() {
-					env.onActivityHeartbeatListener(activityInfo, newEncodedValues(r.Details, env.GetDataConverter()))
+					env.onActivityHeartbeatListener(activityInfo, newEncodedValues(r.GetDetails(), env.GetDataConverter()))
 				}, false)
 			}
 		}
@@ -390,7 +390,7 @@ func newTestWorkflowEnvironmentImpl(s *WorkflowTestSuite, parentRegistry *regist
 		if err := mockHeartbeatFn(ctx, r, opts...); err != nil {
 			return nil, err
 		}
-		return &workflowservice.RecordActivityTaskHeartbeatResponse{CancelRequested: false}, nil
+		return workflowservice.RecordActivityTaskHeartbeatResponse_builder{CancelRequested: false}.Build(), nil
 	}).AnyTimes()
 
 	env.service = mockService
@@ -713,19 +713,19 @@ func (env *testWorkflowEnvironmentImpl) executeActivity(
 
 	scheduleTaskAttr := &commandpb.ScheduleActivityTaskCommandAttributes{}
 	if parameters.ActivityID == "" {
-		scheduleTaskAttr.ActivityId = getStringID(env.nextID())
+		scheduleTaskAttr.SetActivityId(getStringID(env.nextID()))
 	} else {
-		scheduleTaskAttr.ActivityId = parameters.ActivityID
+		scheduleTaskAttr.SetActivityId(parameters.ActivityID)
 	}
-	scheduleTaskAttr.ActivityType = &commonpb.ActivityType{Name: parameters.ActivityType.Name}
-	scheduleTaskAttr.TaskQueue = &taskqueuepb.TaskQueue{Name: parameters.TaskQueueName, Kind: enumspb.TASK_QUEUE_KIND_NORMAL}
-	scheduleTaskAttr.Input = parameters.Input
-	scheduleTaskAttr.ScheduleToCloseTimeout = durationpb.New(parameters.ScheduleToCloseTimeout)
-	scheduleTaskAttr.StartToCloseTimeout = durationpb.New(parameters.StartToCloseTimeout)
-	scheduleTaskAttr.ScheduleToStartTimeout = durationpb.New(parameters.ScheduleToStartTimeout)
-	scheduleTaskAttr.HeartbeatTimeout = durationpb.New(parameters.HeartbeatTimeout)
-	scheduleTaskAttr.RetryPolicy = parameters.RetryPolicy
-	scheduleTaskAttr.Header = parameters.Header
+	scheduleTaskAttr.SetActivityType(commonpb.ActivityType_builder{Name: parameters.ActivityType.Name}.Build())
+	scheduleTaskAttr.SetTaskQueue(taskqueuepb.TaskQueue_builder{Name: parameters.TaskQueueName, Kind: enumspb.TASK_QUEUE_KIND_NORMAL}.Build())
+	scheduleTaskAttr.SetInput(parameters.Input)
+	scheduleTaskAttr.SetScheduleToCloseTimeout(durationpb.New(parameters.ScheduleToCloseTimeout))
+	scheduleTaskAttr.SetStartToCloseTimeout(durationpb.New(parameters.StartToCloseTimeout))
+	scheduleTaskAttr.SetScheduleToStartTimeout(durationpb.New(parameters.ScheduleToStartTimeout))
+	scheduleTaskAttr.SetHeartbeatTimeout(durationpb.New(parameters.HeartbeatTimeout))
+	scheduleTaskAttr.SetRetryPolicy(parameters.RetryPolicy)
+	scheduleTaskAttr.SetHeader(parameters.Header)
 
 	workflowType := env.workflowInfo.WorkflowType.Name
 	if workflowType == workflowTypeNotSpecified {
@@ -739,7 +739,7 @@ func (env *testWorkflowEnvironmentImpl) executeActivity(
 		scheduleTaskAttr,
 	)
 
-	task.HeartbeatDetails = env.heartbeatDetails
+	task.SetHeartbeatDetails(env.heartbeatDetails)
 
 	// ensure activityFn is registered to defaultTestTaskQueue
 	taskHandler := env.newTestActivityTaskHandler(defaultTestTaskQueue, env.GetDataConverter())
@@ -750,12 +750,12 @@ func (env *testWorkflowEnvironmentImpl) executeActivity(
 	result, err := taskHandler.Execute(defaultTestTaskQueue, task)
 	if err != nil {
 		if err == context.DeadlineExceeded {
-			env.logger.Debug(fmt.Sprintf("Activity %v timed out", task.ActivityType.Name))
-			return nil, env.wrapActivityError(activityID, scheduleTaskAttr.ActivityType.Name, enumspb.RETRY_STATE_TIMEOUT, NewTimeoutError("Activity timeout", enumspb.TIMEOUT_TYPE_START_TO_CLOSE, err))
+			env.logger.Debug(fmt.Sprintf("Activity %v timed out", task.GetActivityType().GetName()))
+			return nil, env.wrapActivityError(activityID, scheduleTaskAttr.GetActivityType().GetName(), enumspb.RETRY_STATE_TIMEOUT, NewTimeoutError("Activity timeout", enumspb.TIMEOUT_TYPE_START_TO_CLOSE, err))
 		}
 		topLine := fmt.Sprintf("activity for %s [panic]:", defaultTestTaskQueue)
 		st := getStackTraceRaw(topLine, 7, 0)
-		return nil, env.wrapActivityError(activityID, scheduleTaskAttr.ActivityType.Name, enumspb.RETRY_STATE_UNSPECIFIED, newPanicError(err.Error(), st))
+		return nil, env.wrapActivityError(activityID, scheduleTaskAttr.GetActivityType().GetName(), enumspb.RETRY_STATE_UNSPECIFIED, newPanicError(err.Error(), st))
 	}
 
 	if result == ErrActivityResultPending {
@@ -764,12 +764,12 @@ func (env *testWorkflowEnvironmentImpl) executeActivity(
 
 	switch request := result.(type) {
 	case *workflowservice.RespondActivityTaskCanceledRequest:
-		details := newEncodedValues(request.Details, env.GetDataConverter())
-		return nil, env.wrapActivityError(activityID, scheduleTaskAttr.ActivityType.Name, enumspb.RETRY_STATE_NON_RETRYABLE_FAILURE, NewCanceledError(details))
+		details := newEncodedValues(request.GetDetails(), env.GetDataConverter())
+		return nil, env.wrapActivityError(activityID, scheduleTaskAttr.GetActivityType().GetName(), enumspb.RETRY_STATE_NON_RETRYABLE_FAILURE, NewCanceledError(details))
 	case *workflowservice.RespondActivityTaskFailedRequest:
-		return nil, env.wrapActivityError(activityID, scheduleTaskAttr.ActivityType.Name, enumspb.RETRY_STATE_UNSPECIFIED, env.GetFailureConverter().FailureToError(request.GetFailure()))
+		return nil, env.wrapActivityError(activityID, scheduleTaskAttr.GetActivityType().GetName(), enumspb.RETRY_STATE_UNSPECIFIED, env.GetFailureConverter().FailureToError(request.GetFailure()))
 	case *workflowservice.RespondActivityTaskCompletedRequest:
-		return newEncodedValue(request.Result, env.GetDataConverter()), nil
+		return newEncodedValue(request.GetResult(), env.GetDataConverter()), nil
 	default:
 		// will never happen
 		return nil, fmt.Errorf("unsupported respond type %T", result)
@@ -1238,20 +1238,20 @@ func (env *testWorkflowEnvironmentImpl) ExecuteActivity(parameters ExecuteActivi
 	scheduleTaskAttr := &commandpb.ScheduleActivityTaskCommandAttributes{}
 	scheduleID := env.nextID()
 	if parameters.ActivityID == "" {
-		scheduleTaskAttr.ActivityId = getStringID(scheduleID)
+		scheduleTaskAttr.SetActivityId(getStringID(scheduleID))
 	} else {
-		scheduleTaskAttr.ActivityId = parameters.ActivityID
+		scheduleTaskAttr.SetActivityId(parameters.ActivityID)
 	}
 	activityID := ActivityID{id: scheduleTaskAttr.GetActivityId()}
-	scheduleTaskAttr.ActivityType = &commonpb.ActivityType{Name: parameters.ActivityType.Name}
-	scheduleTaskAttr.TaskQueue = &taskqueuepb.TaskQueue{Name: parameters.TaskQueueName, Kind: enumspb.TASK_QUEUE_KIND_NORMAL}
-	scheduleTaskAttr.Input = parameters.Input
-	scheduleTaskAttr.ScheduleToCloseTimeout = durationpb.New(parameters.ScheduleToCloseTimeout)
-	scheduleTaskAttr.StartToCloseTimeout = durationpb.New(parameters.StartToCloseTimeout)
-	scheduleTaskAttr.ScheduleToStartTimeout = durationpb.New(parameters.ScheduleToStartTimeout)
-	scheduleTaskAttr.HeartbeatTimeout = durationpb.New(parameters.HeartbeatTimeout)
-	scheduleTaskAttr.RetryPolicy = parameters.RetryPolicy
-	scheduleTaskAttr.Header = parameters.Header
+	scheduleTaskAttr.SetActivityType(commonpb.ActivityType_builder{Name: parameters.ActivityType.Name}.Build())
+	scheduleTaskAttr.SetTaskQueue(taskqueuepb.TaskQueue_builder{Name: parameters.TaskQueueName, Kind: enumspb.TASK_QUEUE_KIND_NORMAL}.Build())
+	scheduleTaskAttr.SetInput(parameters.Input)
+	scheduleTaskAttr.SetScheduleToCloseTimeout(durationpb.New(parameters.ScheduleToCloseTimeout))
+	scheduleTaskAttr.SetStartToCloseTimeout(durationpb.New(parameters.StartToCloseTimeout))
+	scheduleTaskAttr.SetScheduleToStartTimeout(durationpb.New(parameters.ScheduleToStartTimeout))
+	scheduleTaskAttr.SetHeartbeatTimeout(durationpb.New(parameters.HeartbeatTimeout))
+	scheduleTaskAttr.SetRetryPolicy(parameters.RetryPolicy)
+	scheduleTaskAttr.SetHeader(parameters.Header)
 	err := env.validateActivityScheduleAttributes(scheduleTaskAttr, env.WorkflowInfo().WorkflowRunTimeout)
 	if err != nil {
 		callback(nil, err)
@@ -1368,14 +1368,14 @@ func (env *testWorkflowEnvironmentImpl) ExecuteActivity(parameters ExecuteActivi
 			panicErr := recover()
 			if result == nil && panicErr == nil {
 				failureErr := errors.New("activity called runtime.Goexit")
-				result = &workflowservice.RespondActivityTaskFailedRequest{
+				result = workflowservice.RespondActivityTaskFailedRequest_builder{
 					Failure: env.failureConverter.ErrorToFailure(failureErr),
-				}
+				}.Build()
 			} else if panicErr != nil {
 				failureErr := newPanicError(fmt.Sprintf("%v", panicErr), "")
-				result = &workflowservice.RespondActivityTaskFailedRequest{
+				result = workflowservice.RespondActivityTaskFailedRequest_builder{
 					Failure: env.failureConverter.ErrorToFailure(failureErr),
-				}
+				}.Build()
 			}
 
 			// Check if any timeout occurred
@@ -1426,7 +1426,7 @@ func (env *testWorkflowEnvironmentImpl) validateActivityScheduleAttributes(
 	}
 
 	defaultTaskQueueName := ""
-	if _, err := env.validatedTaskQueue(attributes.TaskQueue, defaultTaskQueueName); err != nil {
+	if _, err := env.validatedTaskQueue(attributes.GetTaskQueue(), defaultTaskQueueName); err != nil {
 		return err
 	}
 
@@ -1434,11 +1434,11 @@ func (env *testWorkflowEnvironmentImpl) validateActivityScheduleAttributes(
 		return serviceerror.NewInvalidArgument("ActivityId is not set on command.")
 	}
 
-	if attributes.ActivityType == nil || attributes.ActivityType.GetName() == "" {
+	if !attributes.HasActivityType() || attributes.GetActivityType().GetName() == "" {
 		return serviceerror.NewInvalidArgument("ActivityType is not set on command.")
 	}
 
-	if err := env.validateRetryPolicy(attributes.RetryPolicy); err != nil {
+	if err := env.validateRetryPolicy(attributes.GetRetryPolicy()); err != nil {
 		return err
 	}
 
@@ -1462,20 +1462,20 @@ func (env *testWorkflowEnvironmentImpl) validateActivityScheduleAttributes(
 
 	if validScheduleToClose {
 		if validScheduleToStart {
-			attributes.ScheduleToStartTimeout = minDur(attributes.GetScheduleToStartTimeout(), attributes.GetScheduleToCloseTimeout())
+			attributes.SetScheduleToStartTimeout(minDur(attributes.GetScheduleToStartTimeout(), attributes.GetScheduleToCloseTimeout()))
 		} else {
-			attributes.ScheduleToStartTimeout = attributes.GetScheduleToCloseTimeout()
+			attributes.SetScheduleToStartTimeout(attributes.GetScheduleToCloseTimeout())
 		}
 		if validStartToClose {
-			attributes.StartToCloseTimeout = minDur(attributes.GetStartToCloseTimeout(), attributes.GetScheduleToCloseTimeout())
+			attributes.SetStartToCloseTimeout(minDur(attributes.GetStartToCloseTimeout(), attributes.GetScheduleToCloseTimeout()))
 		} else {
-			attributes.StartToCloseTimeout = attributes.GetScheduleToCloseTimeout()
+			attributes.SetStartToCloseTimeout(attributes.GetScheduleToCloseTimeout())
 		}
 	} else if validStartToClose {
 		// We are in !validScheduleToClose due to the first if above
-		attributes.ScheduleToCloseTimeout = durationpb.New(runTimeout)
+		attributes.SetScheduleToCloseTimeout(durationpb.New(runTimeout))
 		if !validScheduleToStart {
-			attributes.ScheduleToStartTimeout = durationpb.New(runTimeout)
+			attributes.SetScheduleToStartTimeout(durationpb.New(runTimeout))
 		}
 	} else {
 		// Deduction failed as there's not enough information to fill in missing timeouts.
@@ -1484,19 +1484,19 @@ func (env *testWorkflowEnvironmentImpl) validateActivityScheduleAttributes(
 	// ensure activity timeout never larger than workflow timeout
 	if runTimeout > 0 {
 		if attributes.GetScheduleToCloseTimeout().AsDuration() > runTimeout {
-			attributes.ScheduleToCloseTimeout = durationpb.New(runTimeout)
+			attributes.SetScheduleToCloseTimeout(durationpb.New(runTimeout))
 		}
 		if attributes.GetScheduleToStartTimeout().AsDuration() > runTimeout {
-			attributes.ScheduleToStartTimeout = durationpb.New(runTimeout)
+			attributes.SetScheduleToStartTimeout(durationpb.New(runTimeout))
 		}
 		if attributes.GetStartToCloseTimeout().AsDuration() > runTimeout {
-			attributes.StartToCloseTimeout = durationpb.New(runTimeout)
+			attributes.SetStartToCloseTimeout(durationpb.New(runTimeout))
 		}
 		if attributes.GetHeartbeatTimeout().AsDuration() > runTimeout {
-			attributes.HeartbeatTimeout = durationpb.New(runTimeout)
+			attributes.SetHeartbeatTimeout(durationpb.New(runTimeout))
 		}
 	}
-	attributes.HeartbeatTimeout = minDur(attributes.GetHeartbeatTimeout(), attributes.GetScheduleToCloseTimeout())
+	attributes.SetHeartbeatTimeout(minDur(attributes.GetHeartbeatTimeout(), attributes.GetScheduleToCloseTimeout()))
 	return nil
 }
 
@@ -1507,14 +1507,14 @@ func (env *testWorkflowEnvironmentImpl) validatedTaskQueue(
 ) (*taskqueuepb.TaskQueue, error) {
 
 	if taskQueue == nil {
-		taskQueue = &taskqueuepb.TaskQueue{Kind: enumspb.TASK_QUEUE_KIND_NORMAL}
+		taskQueue = taskqueuepb.TaskQueue_builder{Kind: enumspb.TASK_QUEUE_KIND_NORMAL}.Build()
 	}
 
 	if taskQueue.GetName() == "" {
 		if defaultVal == "" {
 			return taskQueue, serviceerror.NewInvalidArgument("missing task queue name")
 		}
-		taskQueue.Name = defaultVal
+		taskQueue.SetName(defaultVal)
 		return taskQueue, nil
 	}
 
@@ -1617,10 +1617,10 @@ func (env *testWorkflowEnvironmentImpl) executeActivityWithRetryForTest(
 				// is enqueued.
 				env.registerDelayedCallback(func() {
 					env.runningCount++
-					task.Attempt = task.GetAttempt() + 1
-					activityID := ActivityID{id: string(task.TaskToken)}
-					if ah, ok := env.getActivityHandle(activityID.id, task.WorkflowExecution.RunId); ok {
-						task.HeartbeatDetails = ah.heartbeatDetails
+					task.SetAttempt(task.GetAttempt() + 1)
+					activityID := ActivityID{id: string(task.GetTaskToken())}
+					if ah, ok := env.getActivityHandle(activityID.id, task.GetWorkflowExecution().GetRunId()); ok {
+						task.SetHeartbeatDetails(ah.heartbeatDetails)
 					}
 					close(waitCh)
 				}, backoff)
@@ -1644,7 +1644,7 @@ func fromProtoRetryPolicy(p *commonpb.RetryPolicy) *RetryPolicy {
 		BackoffCoefficient:     p.GetBackoffCoefficient(),
 		MaximumInterval:        p.GetMaximumInterval().AsDuration(),
 		MaximumAttempts:        p.GetMaximumAttempts(),
-		NonRetryableErrorTypes: p.NonRetryableErrorTypes,
+		NonRetryableErrorTypes: p.GetNonRetryableErrorTypes(),
 	}
 }
 
@@ -1663,21 +1663,21 @@ func ensureDefaultRetryPolicy(parameters *ExecuteActivityParams) {
 		parameters.RetryPolicy = &commonpb.RetryPolicy{}
 	}
 
-	if parameters.RetryPolicy.InitialInterval == nil || parameters.RetryPolicy.InitialInterval.AsDuration() == 0 {
-		parameters.RetryPolicy.InitialInterval = durationpb.New(time.Second)
+	if !parameters.RetryPolicy.HasInitialInterval() || parameters.RetryPolicy.GetInitialInterval().AsDuration() == 0 {
+		parameters.RetryPolicy.SetInitialInterval(durationpb.New(time.Second))
 	}
-	if parameters.RetryPolicy.MaximumInterval == nil || parameters.RetryPolicy.MaximumInterval.AsDuration() == 0 {
-		parameters.RetryPolicy.MaximumInterval = parameters.RetryPolicy.InitialInterval
+	if !parameters.RetryPolicy.HasMaximumInterval() || parameters.RetryPolicy.GetMaximumInterval().AsDuration() == 0 {
+		parameters.RetryPolicy.SetMaximumInterval(parameters.RetryPolicy.GetInitialInterval())
 	}
-	if parameters.RetryPolicy.BackoffCoefficient == 0 {
-		parameters.RetryPolicy.BackoffCoefficient = 2
+	if parameters.RetryPolicy.GetBackoffCoefficient() == 0 {
+		parameters.RetryPolicy.SetBackoffCoefficient(2)
 	}
 
 	// NOTE: the default MaximumAttempts for retry policy set by server is 0 which means unlimited retries.
 	// However, unlimited retry with automatic fast forward clock in test framework will cause the CPU to spin and test
 	// to go forever. So we need to set a reasonable default max attempts for unit test.
-	if parameters.RetryPolicy.MaximumAttempts == 0 {
-		parameters.RetryPolicy.MaximumAttempts = defaultMaximumAttemptsForUnitTest
+	if parameters.RetryPolicy.GetMaximumAttempts() == 0 {
+		parameters.RetryPolicy.SetMaximumAttempts(defaultMaximumAttemptsForUnitTest)
 	}
 }
 
@@ -1763,7 +1763,7 @@ func (env *testWorkflowEnvironmentImpl) handleActivityResult(activityID Activity
 
 	switch request := result.(type) {
 	case *workflowservice.RespondActivityTaskCanceledRequest:
-		details := newEncodedValues(request.Details, dataConverter)
+		details := newEncodedValues(request.GetDetails(), dataConverter)
 		err = env.wrapActivityError(
 			activityID,
 			activityType,
@@ -1780,7 +1780,7 @@ func (env *testWorkflowEnvironmentImpl) handleActivityResult(activityID Activity
 		)
 		activityHandle.callback(nil, err)
 	case *workflowservice.RespondActivityTaskCompletedRequest:
-		blob = request.Result
+		blob = request.GetResult()
 		activityHandle.callback(blob, nil)
 	case *activityTimeoutResult:
 		// Activity timed out due to missing heartbeats or exceeding StartToCloseTimeout
@@ -1833,7 +1833,7 @@ func (env *testWorkflowEnvironmentImpl) wrapActivityError(activityID ActivityID,
 		0,
 		0,
 		env.identity,
-		&commonpb.ActivityType{Name: activityType},
+		commonpb.ActivityType_builder{Name: activityType}.Build(),
 		activityID.id,
 		retryState,
 		activityErr,
@@ -2287,28 +2287,28 @@ func newTestActivityTask(workflowID, runID, workflowTypeName, namespace string,
 	attr *commandpb.ScheduleActivityTaskCommandAttributes) *workflowservice.PollActivityTaskQueueResponse {
 	activityID := attr.GetActivityId()
 	now := time.Now()
-	task := &workflowservice.PollActivityTaskQueueResponse{
+	task := workflowservice.PollActivityTaskQueueResponse_builder{
 		Attempt: 1,
-		WorkflowExecution: &commonpb.WorkflowExecution{
+		WorkflowExecution: commonpb.WorkflowExecution_builder{
 			WorkflowId: workflowID,
 			RunId:      runID,
-		},
+		}.Build(),
 		ActivityId:             activityID,
 		TaskToken:              []byte(activityID), // use activityID as TaskToken so we can map TaskToken in heartbeat calls.
-		ActivityType:           &commonpb.ActivityType{Name: attr.GetActivityType().GetName()},
+		ActivityType:           commonpb.ActivityType_builder{Name: attr.GetActivityType().GetName()}.Build(),
 		Input:                  attr.GetInput(),
 		ScheduledTime:          timestamppb.New(now),
 		ScheduleToCloseTimeout: attr.GetScheduleToCloseTimeout(),
 		StartedTime:            timestamppb.New(now),
 		StartToCloseTimeout:    attr.GetStartToCloseTimeout(),
 		HeartbeatTimeout:       attr.GetHeartbeatTimeout(),
-		WorkflowType: &commonpb.WorkflowType{
+		WorkflowType: commonpb.WorkflowType_builder{
 			Name: workflowTypeName,
-		},
+		}.Build(),
 		WorkflowNamespace: namespace,
 		Header:            attr.GetHeader(),
-		Priority:          attr.Priority,
-	}
+		Priority:          attr.GetPriority(),
+	}.Build()
 	return task
 }
 
@@ -2617,14 +2617,12 @@ func (env *testWorkflowEnvironmentImpl) ExecuteNexusOperation(
 				timeoutErr := env.failureConverter.FailureToError(nexusOperationFailure(
 					params,
 					token,
-					&failurepb.Failure{
+					failurepb.Failure_builder{
 						Message: "operation timed out",
-						FailureInfo: &failurepb.Failure_TimeoutFailureInfo{
-							TimeoutFailureInfo: &failurepb.TimeoutFailureInfo{
-								TimeoutType: enumspb.TIMEOUT_TYPE_SCHEDULE_TO_CLOSE,
-							},
-						},
-					},
+						TimeoutFailureInfo: failurepb.TimeoutFailureInfo_builder{
+							TimeoutType: enumspb.TIMEOUT_TYPE_SCHEDULE_TO_CLOSE,
+						}.Build(),
+					}.Build(),
 				))
 				env.postCallback(func() {
 					// For async operation, there are two scenarios:
@@ -2644,7 +2642,7 @@ func (env *testWorkflowEnvironmentImpl) ExecuteNexusOperation(
 		response, failure, err := taskHandler.Execute(task)
 		if err != nil {
 			// No retries for operations, fail the operation immediately.
-			failure = taskHandler.fillInFailure(task.TaskToken, nexusHandlerError(nexus.HandlerErrorTypeInternal, err.Error()))
+			failure = taskHandler.fillInFailure(task.GetTaskToken(), nexusHandlerError(nexus.HandlerErrorTypeInternal, err.Error()))
 		}
 		if failure != nil {
 			// Convert to a nexus HandlerError first to simulate the flow in the server.
@@ -2667,15 +2665,15 @@ func (env *testWorkflowEnvironmentImpl) ExecuteNexusOperation(
 			return
 		}
 
-		switch v := response.GetResponse().GetStartOperation().GetVariant().(type) {
-		case *nexuspb.StartOperationResponse_SyncSuccess:
+		switch v := response.GetResponse().GetStartOperation().WhichVariant(); v {
+		case nexuspb.StartOperationResponse_SyncSuccess_case:
 			env.postCallback(func() {
 				handle.startedCallback("", nil)
-				handle.completedCallback(v.SyncSuccess.GetPayload(), nil)
+				handle.completedCallback(response.GetResponse().GetStartOperation().GetSyncSuccess().GetPayload(), nil)
 			}, true)
-		case *nexuspb.StartOperationResponse_AsyncSuccess:
+		case nexuspb.StartOperationResponse_AsyncSuccess_case:
 			env.postCallback(func() {
-				token = v.AsyncSuccess.GetOperationToken()
+				token = response.GetResponse().GetStartOperation().GetAsyncSuccess().GetOperationToken()
 				handle.startedCallback(token, nil)
 				if handle.cancelRequested {
 					handle.cancel()
@@ -2683,8 +2681,8 @@ func (env *testWorkflowEnvironmentImpl) ExecuteNexusOperation(
 					env.scheduleNexusAsyncOperationCompletion(handle)
 				}
 			}, true)
-		case *nexuspb.StartOperationResponse_OperationError:
-			failure, err := operationErrorToTemporalFailure(apiOperationErrorToNexusOperationError(v.OperationError))
+		case nexuspb.StartOperationResponse_OperationError_case:
+			failure, err := operationErrorToTemporalFailure(apiOperationErrorToNexusOperationError(response.GetResponse().GetStartOperation().GetOperationError()))
 			if err != nil {
 				err = fmt.Errorf("unexpected error while trying to reconstruct Nexus operation error: %w", err)
 				env.postCallback(func() {
@@ -2825,14 +2823,12 @@ func (env *testWorkflowEnvironmentImpl) scheduleNexusAsyncOperationCompletion(
 		nexusErr = env.failureConverter.FailureToError(nexusOperationFailure(
 			handle.params,
 			handle.operationToken,
-			&failurepb.Failure{
+			failurepb.Failure_builder{
 				Message: completionHandle.err.Error(),
-				FailureInfo: &failurepb.Failure_ApplicationFailureInfo{
-					ApplicationFailureInfo: &failurepb.ApplicationFailureInfo{
-						NonRetryable: true,
-					},
-				},
-			},
+				ApplicationFailureInfo: failurepb.ApplicationFailureInfo_builder{
+					NonRetryable: true,
+				}.Build(),
+			}.Build(),
 		))
 	}
 	env.registerDelayedCallback(func() {
@@ -3414,44 +3410,40 @@ func (uc updateCallbacksWrapper) Complete(success interface{}, err error) {
 }
 
 func (h *testNexusOperationHandle) newStartTask() *workflowservice.PollNexusTaskQueueResponse {
-	return &workflowservice.PollNexusTaskQueueResponse{
+	return workflowservice.PollNexusTaskQueueResponse_builder{
 		TaskToken: []byte{},
-		Request: &nexuspb.Request{
+		Request: nexuspb.Request_builder{
 			ScheduledTime: timestamppb.Now(),
 			Header:        h.params.nexusHeader,
-			Variant: &nexuspb.Request_StartOperation{
-				StartOperation: &nexuspb.StartOperationRequest{
-					Service:   h.params.client.Service(),
-					Operation: h.params.operation,
-					RequestId: uuid.NewString(),
-					// This is effectively ignored.
-					Callback: "http://test-env/operations",
-					CallbackHeader: map[string]string{
-						// The test client uses this to call resolveNexusOperation.
-						"operation-sequence": strconv.FormatInt(h.seq, 10),
-					},
-					Payload: h.params.input,
+			StartOperation: nexuspb.StartOperationRequest_builder{
+				Service:   h.params.client.Service(),
+				Operation: h.params.operation,
+				RequestId: uuid.NewString(),
+				// This is effectively ignored.
+				Callback: "http://test-env/operations",
+				CallbackHeader: map[string]string{
+					// The test client uses this to call resolveNexusOperation.
+					"operation-sequence": strconv.FormatInt(h.seq, 10),
 				},
-			},
-		},
-	}
+				Payload: h.params.input,
+			}.Build(),
+		}.Build(),
+	}.Build()
 }
 
 func (h *testNexusOperationHandle) newCancelTask() *workflowservice.PollNexusTaskQueueResponse {
-	return &workflowservice.PollNexusTaskQueueResponse{
+	return workflowservice.PollNexusTaskQueueResponse_builder{
 		TaskToken: []byte{},
-		Request: &nexuspb.Request{
+		Request: nexuspb.Request_builder{
 			ScheduledTime: timestamppb.Now(),
 			Header:        h.params.nexusHeader,
-			Variant: &nexuspb.Request_CancelOperation{
-				CancelOperation: &nexuspb.CancelOperationRequest{
-					Service:        h.params.client.Service(),
-					Operation:      h.params.operation,
-					OperationToken: h.operationToken,
-				},
-			},
-		},
-	}
+			CancelOperation: nexuspb.CancelOperationRequest_builder{
+				Service:        h.params.client.Service(),
+				Operation:      h.params.operation,
+				OperationToken: h.operationToken,
+			}.Build(),
+		}.Build(),
+	}.Build()
 }
 
 // completedCallback is a callback registered to handle operation completion.
@@ -3469,7 +3461,7 @@ func (h *testNexusOperationHandle) completedCallback(result *commonpb.Payload, e
 			h.params.client.Service(),
 			h.params.operation,
 			newEncodedValue(
-				&commonpb.Payloads{Payloads: []*commonpb.Payload{result}},
+				commonpb.Payloads_builder{Payloads: []*commonpb.Payload{result}}.Build(),
 				h.env.GetDataConverter(),
 			),
 			err,
@@ -3613,7 +3605,7 @@ func (r *testNexusHandler) StartOperation(
 				service,
 				operation,
 				newEncodedValue(
-					&commonpb.Payloads{Payloads: []*commonpb.Payload{payload}},
+					commonpb.Payloads_builder{Payloads: []*commonpb.Payload{payload}}.Build(),
 					r.env.GetDataConverter(),
 				),
 			)

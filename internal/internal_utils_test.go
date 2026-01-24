@@ -128,12 +128,12 @@ func TestFailureToError_TimeoutError(t *testing.T) {
 	details, err := dc.ToPayloads(testErrorDetails1)
 	require.NoError(t, err)
 
-	failure := &failurepb.Failure{
-		FailureInfo: &failurepb.Failure_TimeoutFailureInfo{TimeoutFailureInfo: &failurepb.TimeoutFailureInfo{
+	failure := failurepb.Failure_builder{
+		TimeoutFailureInfo: failurepb.TimeoutFailureInfo_builder{
 			TimeoutType:          enumspb.TIMEOUT_TYPE_HEARTBEAT,
 			LastHeartbeatDetails: details,
-		}},
-	}
+		}.Build(),
+	}.Build()
 	constructedErr := fc.FailureToError(failure)
 	timeoutErr, ok := constructedErr.(*TimeoutError)
 	require.True(t, ok)

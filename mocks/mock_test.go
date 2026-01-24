@@ -73,19 +73,19 @@ func Test_MockClient(t *testing.T) {
 func Test_MockResetWorkflowExecution(t *testing.T) {
 	mockClient := &Client{}
 
-	req := &workflowservice.ResetWorkflowExecutionRequest{
+	req := workflowservice.ResetWorkflowExecutionRequest_builder{
 		Namespace: "test-namespace",
-		WorkflowExecution: &commonpb.WorkflowExecution{
+		WorkflowExecution: commonpb.WorkflowExecution_builder{
 			WorkflowId: "wid",
 			RunId:      "rid",
-		},
+		}.Build(),
 		Reason:                    "bad deployment",
 		WorkflowTaskFinishEventId: 6,
 		RequestId:                 "request-id-random",
-	}
-	resp := &workflowservice.ResetWorkflowExecutionResponse{
+	}.Build()
+	resp := workflowservice.ResetWorkflowExecutionResponse_builder{
 		RunId: "new-run-id",
-	}
+	}.Build()
 
 	mockClient.On("ResetWorkflowExecution", mock.Anything, mock.Anything).Return(resp, nil).Once()
 	actualResp, err := mockClient.ResetWorkflowExecution(context.Background(), req)

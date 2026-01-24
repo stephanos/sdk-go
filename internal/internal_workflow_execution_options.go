@@ -10,6 +10,7 @@ import (
 	enumspb "go.temporal.io/api/enums/v1"
 	workflowpb "go.temporal.io/api/workflow/v1"
 	"go.temporal.io/api/workflowservice/v1"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
@@ -132,25 +133,23 @@ func versioningOverrideToProto(versioningOverride VersioningOverride) *workflowp
 	behavior := versioningOverride.behavior()
 	switch v := versioningOverride.(type) {
 	case *PinnedVersioningOverride:
-		return &workflowpb.VersioningOverride{
+		return workflowpb.VersioningOverride_builder{
 			Behavior:      versioningBehaviorToProto(behavior),
 			PinnedVersion: v.Version.toCanonicalString(),
-			Deployment: &deploymentpb.Deployment{
+			Deployment: deploymentpb.Deployment_builder{
 				SeriesName: v.Version.DeploymentName,
 				BuildId:    v.Version.BuildID,
-			},
-			Override: &workflowpb.VersioningOverride_Pinned{
-				Pinned: &workflowpb.VersioningOverride_PinnedOverride{
-					Behavior: workflowpb.VersioningOverride_PINNED_OVERRIDE_BEHAVIOR_PINNED,
-					Version:  v.Version.toProto(),
-				},
-			},
-		}
+			}.Build(),
+			Pinned: workflowpb.VersioningOverride_PinnedOverride_builder{
+				Behavior: workflowpb.VersioningOverride_PINNED_OVERRIDE_BEHAVIOR_PINNED,
+				Version:  v.Version.toProto(),
+			}.Build(),
+		}.Build()
 	case *AutoUpgradeVersioningOverride:
-		return &workflowpb.VersioningOverride{
-			Behavior: versioningBehaviorToProto(behavior),
-			Override: &workflowpb.VersioningOverride_AutoUpgrade{AutoUpgrade: true},
-		}
+		return workflowpb.VersioningOverride_builder{
+			Behavior:    versioningBehaviorToProto(behavior),
+			AutoUpgrade: proto.Bool(true),
+		}.Build()
 	default:
 		return nil
 	}
@@ -161,13 +160,13 @@ func versioningOverrideFromProto(versioningOverride *workflowpb.VersioningOverri
 		return nil
 	}
 
-	if versioningOverride.Override != nil {
-		switch ot := versioningOverride.Override.(type) {
-		case *workflowpb.VersioningOverride_AutoUpgrade:
+	if versioningOverride.HasOverride() {
+		switch versioningOverride.WhichOverride() {
+		case workflowpb.VersioningOverride_AutoUpgrade_case:
 			return &AutoUpgradeVersioningOverride{}
-		case *workflowpb.VersioningOverride_Pinned:
+		case workflowpb.VersioningOverride_Pinned_case:
 			return &PinnedVersioningOverride{
-				Version: workerDeploymentVersionFromProto(ot.Pinned.Version),
+				Version: workerDeploymentVersionFromProto(versioningOverride.GetPinned().GetVersion()),
 			}
 		}
 	}
@@ -179,18 +178,18 @@ func versioningOverrideFromProto(versioningOverride *workflowpb.VersioningOverri
 		return &AutoUpgradeVersioningOverride{}
 	case enumspb.VERSIONING_BEHAVIOR_PINNED:
 		//lint:ignore SA1019 ignore deprecated versioning APIs
-		if versioningOverride.PinnedVersion != "" {
+		if versioningOverride.GetPinnedVersion() != "" {
 			return &PinnedVersioningOverride{
 				//lint:ignore SA1019 ignore deprecated versioning APIs
-				Version: *workerDeploymentVersionFromString(versioningOverride.PinnedVersion),
+				Version: *workerDeploymentVersionFromString(versioningOverride.GetPinnedVersion()),
 			}
 		}
 		return &PinnedVersioningOverride{
 			Version: WorkerDeploymentVersion{
 				//lint:ignore SA1019 ignore deprecated versioning APIs
-				DeploymentName: versioningOverride.GetDeployment().SeriesName,
+				DeploymentName: versioningOverride.GetDeployment().GetSeriesName(),
 				//lint:ignore SA1019 ignore deprecated versioning APIs
-				BuildID: versioningOverride.GetDeployment().BuildId,
+				BuildID: versioningOverride.GetDeployment().GetBuildId(),
 			},
 		}
 	default:
@@ -199,9 +198,9 @@ func versioningOverrideFromProto(versioningOverride *workflowpb.VersioningOverri
 }
 
 func workflowExecutionOptionsToProto(options WorkflowExecutionOptions) *workflowpb.WorkflowExecutionOptions {
-	return &workflowpb.WorkflowExecutionOptions{
+	return workflowpb.WorkflowExecutionOptions_builder{
 		VersioningOverride: versioningOverrideToProto(options.VersioningOverride),
-	}
+	}.Build()
 }
 
 func workflowExecutionOptionsChangesToProto(changes WorkflowExecutionOptionsChanges) (*workflowpb.WorkflowExecutionOptions, *fieldmaskpb.FieldMask) {
@@ -241,15 +240,15 @@ func (r *UpdateWorkflowExecutionOptionsRequest) validateAndConvertToProto(namesp
 
 	workflowExecutionOptions, updateMask := workflowExecutionOptionsChangesToProto(r.WorkflowExecutionOptionsChanges)
 
-	requestMsg := &workflowservice.UpdateWorkflowExecutionOptionsRequest{
+	requestMsg := workflowservice.UpdateWorkflowExecutionOptionsRequest_builder{
 		Namespace: namespace,
-		WorkflowExecution: &commonpb.WorkflowExecution{
+		WorkflowExecution: commonpb.WorkflowExecution_builder{
 			WorkflowId: r.WorkflowId,
 			RunId:      r.RunId,
-		},
+		}.Build(),
 		WorkflowExecutionOptions: workflowExecutionOptions,
 		UpdateMask:               updateMask,
-	}
+	}.Build()
 
 	return requestMsg, nil
 }
@@ -258,9 +257,9 @@ func (o *OnConflictOptions) ToProto() *workflowpb.OnConflictOptions {
 	if o == nil {
 		return nil
 	}
-	return &workflowpb.OnConflictOptions{
+	return workflowpb.OnConflictOptions_builder{
 		AttachRequestId:           o.AttachRequestID,
 		AttachCompletionCallbacks: o.AttachCompletionCallbacks,
 		AttachLinks:               o.AttachLinks,
-	}
+	}.Build()
 }

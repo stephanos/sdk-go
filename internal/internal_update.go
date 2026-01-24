@@ -12,6 +12,7 @@ import (
 	updatepb "go.temporal.io/api/update/v1"
 	"go.temporal.io/sdk/converter"
 	"go.temporal.io/sdk/internal/protocol"
+	"google.golang.org/protobuf/proto"
 )
 
 type updateState string
@@ -129,7 +130,7 @@ func (up *updateProtocol) requireState(action string, valid ...updateState) {
 
 func (up *updateProtocol) HandleMessage(msg *protocolpb.Message) error {
 	var request updatepb.Request
-	if err := msg.Body.UnmarshalTo(&request); err != nil {
+	if err := msg.GetBody().UnmarshalTo(&request); err != nil {
 		return err
 	}
 	up.initialRequest = &request
@@ -146,15 +147,15 @@ func (up *updateProtocol) HandleMessage(msg *protocolpb.Message) error {
 // before execution has started.
 func (up *updateProtocol) Accept() {
 	up.requireState("accept", updateStateRequestInitiated)
-	up.env.Send(&protocolpb.Message{
+	up.env.Send(protocolpb.Message_builder{
 		Id:                 up.protoInstanceID + "/accept",
 		ProtocolInstanceId: up.protoInstanceID,
-		Body: protocol.MustMarshalAny(&updatepb.Acceptance{
+		Body: protocol.MustMarshalAny(updatepb.Acceptance_builder{
 			AcceptedRequestMessageId:         up.requestMsgID,
 			AcceptedRequestSequencingEventId: up.requestSeqID,
 			AcceptedRequest:                  up.initialRequest,
-		}),
-	}, withExpectedEventPredicate(up.checkAcceptedEvent))
+		}.Build()),
+	}.Build(), withExpectedEventPredicate(up.checkAcceptedEvent))
 	// Stop holding a reference to the initial request to allow it to be GCed
 	up.initialRequest = nil
 	up.state = updateStateAccepted
@@ -163,16 +164,16 @@ func (up *updateProtocol) Accept() {
 // Reject is called for an update if validation fails.
 func (up *updateProtocol) Reject(err error) {
 	up.requireState("reject", updateStateNew, updateStateRequestInitiated)
-	up.env.Send(&protocolpb.Message{
+	up.env.Send(protocolpb.Message_builder{
 		Id:                 up.protoInstanceID + "/reject",
 		ProtocolInstanceId: up.protoInstanceID,
-		Body: protocol.MustMarshalAny(&updatepb.Rejection{
+		Body: protocol.MustMarshalAny(updatepb.Rejection_builder{
 			RejectedRequestMessageId:         up.requestMsgID,
 			RejectedRequestSequencingEventId: up.requestSeqID,
 			RejectedRequest:                  up.initialRequest,
 			Failure:                          up.env.GetFailureConverter().ErrorToFailure(err),
-		}),
-	})
+		}.Build()),
+	}.Build())
 	up.state = updateStateCompleted
 }
 
@@ -182,29 +183,25 @@ func (up *updateProtocol) Complete(success interface{}, outcomeErr error) {
 	up.requireState("complete", updateStateAccepted)
 	outcome := &updatepb.Outcome{}
 	if outcomeErr != nil {
-		outcome.Value = &updatepb.Outcome_Failure{
-			Failure: up.env.GetFailureConverter().ErrorToFailure(outcomeErr),
-		}
+		outcome.SetFailure(proto.ValueOrDefault(up.env.GetFailureConverter().ErrorToFailure(outcomeErr)))
 	} else {
 		success, err := up.env.GetDataConverter().ToPayloads(success)
 		if err != nil {
 			panic(err)
 		}
-		outcome.Value = &updatepb.Outcome_Success{
-			Success: success,
-		}
+		outcome.SetSuccess(proto.ValueOrDefault(success))
 	}
-	up.env.Send(&protocolpb.Message{
+	up.env.Send(protocolpb.Message_builder{
 		Id:                 up.protoInstanceID + "/complete",
 		ProtocolInstanceId: up.protoInstanceID,
-		Body: protocol.MustMarshalAny(&updatepb.Response{
-			Meta: &updatepb.Meta{
+		Body: protocol.MustMarshalAny(updatepb.Response_builder{
+			Meta: updatepb.Meta_builder{
 				UpdateId: up.protoInstanceID,
 				Identity: up.clientIdentity,
-			},
+			}.Build(),
 			Outcome: outcome,
-		}),
-	}, withExpectedEventPredicate(up.checkCompletedEvent))
+		}.Build()),
+	}.Build(), withExpectedEventPredicate(up.checkCompletedEvent))
 	up.state = updateStateCompleted
 }
 
@@ -213,7 +210,7 @@ func (up *updateProtocol) checkCompletedEvent(e *historypb.HistoryEvent) bool {
 	if attrs == nil {
 		return false
 	}
-	return attrs.Meta.GetUpdateId() == up.protoInstanceID
+	return attrs.GetMeta().GetUpdateId() == up.protoInstanceID
 }
 
 func (up *updateProtocol) checkAcceptedEvent(e *historypb.HistoryEvent) bool {
@@ -222,8 +219,8 @@ func (up *updateProtocol) checkAcceptedEvent(e *historypb.HistoryEvent) bool {
 		return false
 	}
 	return attrs.GetProtocolInstanceId() == up.protoInstanceID &&
-		attrs.AcceptedRequestMessageId == up.requestMsgID &&
-		attrs.AcceptedRequestSequencingEventId == up.requestSeqID
+		attrs.GetAcceptedRequestMessageId() == up.requestMsgID &&
+		attrs.GetAcceptedRequestSequencingEventId() == up.requestSeqID
 }
 
 // defaultHandler receives the initial invocation of an update during WFT

@@ -40,28 +40,28 @@ func (e *eagerActivityExecutor) applyToRequest(
 
 	// Go over every command checking for activities that can be eagerly executed
 	eagerRequestsThisTask := 0
-	for _, command := range req.Commands {
+	for _, command := range req.GetCommands() {
 		if attrs := command.GetScheduleActivityTaskCommandAttributes(); attrs != nil {
 			// If not present, disabled, not requested, no activity worker, on a
 			// different task queue, or reached max for task, we must mark as
 			// explicitly disabled
 			eagerDisallowed := e == nil ||
 				e.disabled ||
-				!attrs.RequestEagerExecution ||
+				!attrs.GetRequestEagerExecution() ||
 				e.activityWorker == nil ||
-				e.taskQueue != attrs.TaskQueue.GetName() ||
+				e.taskQueue != attrs.GetTaskQueue().GetName() ||
 				eagerRequestsThisTask >= maxPerTask
 			if eagerDisallowed {
-				attrs.RequestEagerExecution = false
+				attrs.SetRequestEagerExecution(false)
 			} else {
 				// If it has been requested, attempt to reserve one pending
 				maybePermit := e.reserveOnePendingSlot()
 				if maybePermit != nil {
 					reservedPermits = append(reservedPermits, maybePermit)
-					attrs.RequestEagerExecution = true
+					attrs.SetRequestEagerExecution(true)
 					eagerRequestsThisTask++
 				} else {
-					attrs.RequestEagerExecution = false
+					attrs.SetRequestEagerExecution(false)
 				}
 			}
 		}

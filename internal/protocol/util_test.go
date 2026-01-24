@@ -14,11 +14,11 @@ import (
 )
 
 func TestNameFromMessage(t *testing.T) {
-	msg := &protocolpb.Message{Body: &anypb.Any{}}
+	msg := protocolpb.Message_builder{Body: &anypb.Any{}}.Build()
 	_, err := protocol.NameFromMessage(msg)
 	require.Error(t, err)
 
-	msg.Body = protocol.MustMarshalAny(&updatepb.Request{})
+	msg.SetBody(protocol.MustMarshalAny(&updatepb.Request{}))
 	name, err := protocol.NameFromMessage(msg)
 	require.NoError(t, err)
 	require.Equal(t, "temporal.api.update.v1", name)

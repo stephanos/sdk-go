@@ -36,7 +36,7 @@ type (
 
 // SerializeBatchEvents serializes batch events into a datablob proto
 func SerializeBatchEvents(events []*historypb.HistoryEvent, encodingType enumspb.EncodingType) (*commonpb.DataBlob, error) {
-	return serialize(&historypb.History{Events: events}, encodingType)
+	return serialize(historypb.History_builder{Events: events}.Build(), encodingType)
 }
 
 func serializeProto(p Marshaler, encodingType enumspb.EncodingType) (*commonpb.DataBlob, error) {
@@ -78,24 +78,24 @@ func DeserializeBatchEvents(data *commonpb.DataBlob) ([]*historypb.HistoryEvent,
 	if data == nil {
 		return nil, nil
 	}
-	if len(data.Data) == 0 {
+	if len(data.GetData()) == 0 {
 		return nil, nil
 	}
 
 	events := &historypb.History{}
 	var err error
-	switch data.EncodingType {
+	switch data.GetEncodingType() {
 	case enumspb.ENCODING_TYPE_JSON:
-		err = NewJSONPBEncoder().Decode(data.Data, events)
+		err = NewJSONPBEncoder().Decode(data.GetData(), events)
 	case enumspb.ENCODING_TYPE_PROTO3:
-		err = proto.Unmarshal(data.Data, events)
+		err = proto.Unmarshal(data.GetData(), events)
 	default:
 		return nil, NewDeserializationError("DeserializeBatchEvents invalid encoding")
 	}
 	if err != nil {
 		return nil, err
 	}
-	return events.Events, nil
+	return events.GetEvents(), nil
 }
 
 func serialize(input interface{}, encodingType enumspb.EncodingType) (*commonpb.DataBlob, error) {
@@ -157,10 +157,10 @@ func NewDataBlob(data []byte, encodingType enumspb.EncodingType) *commonpb.DataB
 		return nil
 	}
 
-	return &commonpb.DataBlob{
+	return commonpb.DataBlob_builder{
 		Data:         data,
 		EncodingType: encodingType,
-	}
+	}.Build()
 }
 
 // DeserializeBlobDataToHistoryEvents deserialize the blob data to history event data
@@ -187,5 +187,5 @@ func DeserializeBlobDataToHistoryEvents(
 	if filterType == enumspb.HISTORY_EVENT_FILTER_TYPE_CLOSE_EVENT {
 		historyEvents = []*historypb.HistoryEvent{historyEvents[len(historyEvents)-1]}
 	}
-	return &historypb.History{Events: historyEvents}, nil
+	return historypb.History_builder{Events: historyEvents}.Build(), nil
 }

@@ -14,6 +14,7 @@ import (
 
 	"go.temporal.io/sdk/converter"
 	"go.temporal.io/sdk/internal/common/util"
+	"google.golang.org/protobuf/proto"
 )
 
 type (
@@ -413,7 +414,7 @@ func (h *commandsHelper) newNaiveCommandStateMachine(commandType commandType, id
 
 func (h *commandsHelper) newMarkerCommandStateMachine(id string, attributes *commandpb.RecordMarkerCommandAttributes, userMetadata *sdk.UserMetadata) *markerCommandStateMachine {
 	d := createNewCommandWithMetadata(enumspb.COMMAND_TYPE_RECORD_MARKER, userMetadata)
-	d.Attributes = &commandpb.Command_RecordMarkerCommandAttributes{RecordMarkerCommandAttributes: attributes}
+	d.SetRecordMarkerCommandAttributes(proto.ValueOrDefault(attributes))
 	return &markerCommandStateMachine{
 		naiveCommandStateMachine: h.newNaiveCommandStateMachine(commandTypeMarker, id, d),
 	}
@@ -421,7 +422,7 @@ func (h *commandsHelper) newMarkerCommandStateMachine(id string, attributes *com
 
 func (h *commandsHelper) newCancelExternalWorkflowStateMachine(attributes *commandpb.RequestCancelExternalWorkflowExecutionCommandAttributes, cancellationID string) *cancelExternalWorkflowCommandStateMachine {
 	d := createNewCommand(enumspb.COMMAND_TYPE_REQUEST_CANCEL_EXTERNAL_WORKFLOW_EXECUTION)
-	d.Attributes = &commandpb.Command_RequestCancelExternalWorkflowExecutionCommandAttributes{RequestCancelExternalWorkflowExecutionCommandAttributes: attributes}
+	d.SetRequestCancelExternalWorkflowExecutionCommandAttributes(proto.ValueOrDefault(attributes))
 	return &cancelExternalWorkflowCommandStateMachine{
 		naiveCommandStateMachine: h.newNaiveCommandStateMachine(commandTypeCancellation, cancellationID, d),
 	}
@@ -429,7 +430,7 @@ func (h *commandsHelper) newCancelExternalWorkflowStateMachine(attributes *comma
 
 func (h *commandsHelper) newSignalExternalWorkflowStateMachine(attributes *commandpb.SignalExternalWorkflowExecutionCommandAttributes, signalID string) *signalExternalWorkflowCommandStateMachine {
 	d := createNewCommand(enumspb.COMMAND_TYPE_SIGNAL_EXTERNAL_WORKFLOW_EXECUTION)
-	d.Attributes = &commandpb.Command_SignalExternalWorkflowExecutionCommandAttributes{SignalExternalWorkflowExecutionCommandAttributes: attributes}
+	d.SetSignalExternalWorkflowExecutionCommandAttributes(proto.ValueOrDefault(attributes))
 	return &signalExternalWorkflowCommandStateMachine{
 		naiveCommandStateMachine: h.newNaiveCommandStateMachine(commandTypeSignal, signalID, d),
 	}
@@ -437,7 +438,7 @@ func (h *commandsHelper) newSignalExternalWorkflowStateMachine(attributes *comma
 
 func (h *commandsHelper) newUpsertSearchAttributesStateMachine(attributes *commandpb.UpsertWorkflowSearchAttributesCommandAttributes, upsertID string) *completeOnSendStateMachine {
 	d := createNewCommand(enumspb.COMMAND_TYPE_UPSERT_WORKFLOW_SEARCH_ATTRIBUTES)
-	d.Attributes = &commandpb.Command_UpsertWorkflowSearchAttributesCommandAttributes{UpsertWorkflowSearchAttributesCommandAttributes: attributes}
+	d.SetUpsertWorkflowSearchAttributesCommandAttributes(proto.ValueOrDefault(attributes))
 	return &completeOnSendStateMachine{
 		naiveCommandStateMachine: h.newNaiveCommandStateMachine(commandTypeUpsertSearchAttributes, upsertID, d),
 	}
@@ -448,9 +449,7 @@ func (h *commandsHelper) newModifyPropertiesStateMachine(
 	changeID string,
 ) *modifyPropertiesCommandStateMachine {
 	d := createNewCommand(enumspb.COMMAND_TYPE_MODIFY_WORKFLOW_PROPERTIES)
-	d.Attributes = &commandpb.Command_ModifyWorkflowPropertiesCommandAttributes{
-		ModifyWorkflowPropertiesCommandAttributes: attributes,
-	}
+	d.SetModifyWorkflowPropertiesCommandAttributes(proto.ValueOrDefault(attributes))
 	return &modifyPropertiesCommandStateMachine{
 		naiveCommandStateMachine: h.newNaiveCommandStateMachine(
 			commandTypeModifyProperties,
@@ -600,8 +599,8 @@ func (d *activityCommandStateMachine) getCommand() *commandpb.Command {
 	switch d.state {
 	case commandStateCreated, commandStateCanceledBeforeSent:
 		command := createNewCommand(enumspb.COMMAND_TYPE_SCHEDULE_ACTIVITY_TASK)
-		command.Attributes = &commandpb.Command_ScheduleActivityTaskCommandAttributes{ScheduleActivityTaskCommandAttributes: d.attributes}
-		command.UserMetadata = d.startMetadata
+		command.SetScheduleActivityTaskCommandAttributes(proto.ValueOrDefault(d.attributes))
+		command.SetUserMetadata(d.startMetadata)
 		return command
 	default:
 		return nil
@@ -627,9 +626,9 @@ func (d *activityCommandStateMachine) handleCancelFailedEvent() {
 func (d *activityCommandStateMachine) cancel() {
 	switch d.state {
 	case commandStateCreated, commandStateCommandSent, commandStateInitiated:
-		attribs := &commandpb.RequestCancelActivityTaskCommandAttributes{
+		attribs := commandpb.RequestCancelActivityTaskCommandAttributes_builder{
 			ScheduledEventId: d.scheduleID,
-		}
+		}.Build()
 		cancelCmd := d.helper.newCancelActivityStateMachine(attribs)
 		d.helper.addCommand(cancelCmd)
 		// We also mark the schedule command as not eager if we haven't sent it yet.
@@ -638,7 +637,7 @@ func (d *activityCommandStateMachine) cancel() {
 		// means we are cancelling at the same time as scheduling which is not
 		// properly supported for eager activities.
 		if d.state != commandStateCommandSent {
-			d.attributes.RequestEagerExecution = false
+			d.attributes.SetRequestEagerExecution(false)
 		}
 	}
 
@@ -648,9 +647,9 @@ func (d *activityCommandStateMachine) cancel() {
 func (d *timerCommandStateMachine) cancel() {
 	switch d.state {
 	case commandStateCreated, commandStateCommandSent, commandStateInitiated:
-		attribs := &commandpb.CancelTimerCommandAttributes{
-			TimerId: d.attributes.TimerId,
-		}
+		attribs := commandpb.CancelTimerCommandAttributes_builder{
+			TimerId: d.attributes.GetTimerId(),
+		}.Build()
 		cancelCmd := d.helper.newCancelTimerCommandStateMachine(attribs)
 		d.helper.addCommand(cancelCmd)
 	}
@@ -675,7 +674,7 @@ func (d *cancelActivityStateMachine) getCommand() *commandpb.Command {
 	switch d.state {
 	case commandStateCreated:
 		command := createNewCommand(enumspb.COMMAND_TYPE_REQUEST_CANCEL_ACTIVITY_TASK)
-		command.Attributes = &commandpb.Command_RequestCancelActivityTaskCommandAttributes{RequestCancelActivityTaskCommandAttributes: d.attributes}
+		command.SetRequestCancelActivityTaskCommandAttributes(proto.ValueOrDefault(d.attributes))
 		return command
 	default:
 		return nil
@@ -686,8 +685,8 @@ func (d *timerCommandStateMachine) getCommand() *commandpb.Command {
 	switch d.state {
 	case commandStateCreated, commandStateCanceledBeforeSent:
 		command := createNewCommand(enumspb.COMMAND_TYPE_START_TIMER)
-		command.Attributes = &commandpb.Command_StartTimerCommandAttributes{StartTimerCommandAttributes: d.attributes}
-		command.UserMetadata = d.startMetadata
+		command.SetStartTimerCommandAttributes(proto.ValueOrDefault(d.attributes))
+		command.SetUserMetadata(d.startMetadata)
 		return command
 	default:
 		return nil
@@ -698,7 +697,7 @@ func (d *cancelTimerCommandStateMachine) getCommand() *commandpb.Command {
 	switch d.state {
 	case commandStateCreated:
 		command := createNewCommand(enumspb.COMMAND_TYPE_CANCEL_TIMER)
-		command.Attributes = &commandpb.Command_CancelTimerCommandAttributes{CancelTimerCommandAttributes: d.attributes}
+		command.SetCancelTimerCommandAttributes(proto.ValueOrDefault(d.attributes))
 		return command
 	default:
 		return nil
@@ -709,16 +708,16 @@ func (d *childWorkflowCommandStateMachine) getCommand() *commandpb.Command {
 	switch d.state {
 	case commandStateCreated:
 		command := createNewCommand(enumspb.COMMAND_TYPE_START_CHILD_WORKFLOW_EXECUTION)
-		command.Attributes = &commandpb.Command_StartChildWorkflowExecutionCommandAttributes{StartChildWorkflowExecutionCommandAttributes: d.attributes}
-		command.UserMetadata = d.startMetadata
+		command.SetStartChildWorkflowExecutionCommandAttributes(proto.ValueOrDefault(d.attributes))
+		command.SetUserMetadata(d.startMetadata)
 		return command
 	case commandStateCanceledAfterStarted:
 		command := createNewCommand(enumspb.COMMAND_TYPE_REQUEST_CANCEL_EXTERNAL_WORKFLOW_EXECUTION)
-		command.Attributes = &commandpb.Command_RequestCancelExternalWorkflowExecutionCommandAttributes{RequestCancelExternalWorkflowExecutionCommandAttributes: &commandpb.RequestCancelExternalWorkflowExecutionCommandAttributes{
-			Namespace:         d.attributes.Namespace,
-			WorkflowId:        d.attributes.WorkflowId,
+		command.SetRequestCancelExternalWorkflowExecutionCommandAttributes(commandpb.RequestCancelExternalWorkflowExecutionCommandAttributes_builder{
+			Namespace:         d.attributes.GetNamespace(),
+			WorkflowId:        d.attributes.GetWorkflowId(),
 			ChildWorkflowOnly: true,
-		}}
+		}.Build())
 		return command
 	default:
 		return nil
@@ -920,13 +919,11 @@ func (d *modifyPropertiesCommandStateMachine) handleCommandSent() {
 func (sm *nexusOperationStateMachine) getCommand() *commandpb.Command {
 	if sm.state == commandStateCreated && sm.cancelation == nil {
 		// Only create the command in this state unlike other machines that also create it if canceled before sent.
-		return &commandpb.Command{
-			CommandType:  enumspb.COMMAND_TYPE_SCHEDULE_NEXUS_OPERATION,
-			UserMetadata: sm.startMetadata,
-			Attributes: &commandpb.Command_ScheduleNexusOperationCommandAttributes{
-				ScheduleNexusOperationCommandAttributes: sm.attributes,
-			},
-		}
+		return commandpb.Command_builder{
+			CommandType:                             enumspb.COMMAND_TYPE_SCHEDULE_NEXUS_OPERATION,
+			UserMetadata:                            sm.startMetadata,
+			ScheduleNexusOperationCommandAttributes: proto.ValueOrDefault(sm.attributes),
+		}.Build()
 	}
 	return nil
 }
@@ -956,9 +953,9 @@ func (sm *nexusOperationStateMachine) cancel() {
 		return
 	}
 
-	attribs := &commandpb.RequestCancelNexusOperationCommandAttributes{
+	attribs := commandpb.RequestCancelNexusOperationCommandAttributes_builder{
 		ScheduledEventId: sm.scheduledEventID,
-	}
+	}.Build()
 	cancelCmd := sm.helper.newRequestCancelNexusOperationStateMachine(attribs)
 	sm.cancelation = cancelCmd
 	sm.helper.addCommand(cancelCmd)
@@ -973,7 +970,7 @@ func (d *requestCancelNexusOperationStateMachine) getCommand() *commandpb.Comman
 	switch d.state {
 	case commandStateCreated:
 		command := createNewCommand(enumspb.COMMAND_TYPE_REQUEST_CANCEL_NEXUS_OPERATION)
-		command.Attributes = &commandpb.Command_RequestCancelNexusOperationCommandAttributes{RequestCancelNexusOperationCommandAttributes: d.attributes}
+		command.SetRequestCancelNexusOperationCommandAttributes(proto.ValueOrDefault(d.attributes))
 		return command
 	default:
 		return nil
@@ -1206,8 +1203,8 @@ func (h *commandsHelper) handleNexusOperationScheduled(event *historypb.HistoryE
 	}
 	command := h.nexusOperationsWithoutScheduledID.Remove(elem).(*nexusOperationStateMachine)
 
-	command.scheduledEventID = event.EventId
-	h.scheduledEventIDToNexusSeq[event.EventId] = command.seq
+	command.scheduledEventID = event.GetEventId()
+	h.scheduledEventIDToNexusSeq[event.GetEventId()] = command.seq
 	command.handleInitiatedEvent()
 }
 
@@ -1285,20 +1282,20 @@ func (h *commandsHelper) recordVersionMarker(changeID string, version Version, d
 		panic(err)
 	}
 
-	recordMarker := &commandpb.RecordMarkerCommandAttributes{
+	recordMarker := commandpb.RecordMarkerCommandAttributes_builder{
 		MarkerName: versionMarkerName,
 		Details: map[string]*commonpb.Payloads{
 			versionMarkerChangeIDName: changeIDPayload,
 			versionMarkerDataName:     versionPayload,
 		},
-	}
+	}.Build()
 
 	if !searchAttributeWasUpdated {
 		searchAttributeWasUpdatedPayload, err := dc.ToPayloads(searchAttributeWasUpdated)
 		if err != nil {
 			panic(err)
 		}
-		recordMarker.Details[versionSearchAttributeUpdatedName] = searchAttributeWasUpdatedPayload
+		recordMarker.GetDetails()[versionSearchAttributeUpdatedName] = searchAttributeWasUpdatedPayload
 	}
 
 	command := h.newMarkerCommandStateMachine(markerID, recordMarker, nil)
@@ -1329,13 +1326,13 @@ func (h *commandsHelper) recordSideEffectMarker(sideEffectID int64, data *common
 		panic(err)
 	}
 
-	attributes := &commandpb.RecordMarkerCommandAttributes{
+	attributes := commandpb.RecordMarkerCommandAttributes_builder{
 		MarkerName: sideEffectMarkerName,
 		Details: map[string]*commonpb.Payloads{
 			sideEffectMarkerIDName:   sideEffectIDPayload,
 			sideEffectMarkerDataName: data,
 		},
-	}
+	}.Build()
 	command := h.newMarkerCommandStateMachine(markerID, attributes, userMetadata)
 	h.addCommand(command)
 	return command
@@ -1343,11 +1340,11 @@ func (h *commandsHelper) recordSideEffectMarker(sideEffectID int64, data *common
 
 func (h *commandsHelper) recordLocalActivityMarker(activityID string, details map[string]*commonpb.Payloads, failure *failurepb.Failure, metadata *sdk.UserMetadata) commandStateMachine {
 	markerID := fmt.Sprintf("%v_%v", localActivityMarkerName, activityID)
-	attributes := &commandpb.RecordMarkerCommandAttributes{
+	attributes := commandpb.RecordMarkerCommandAttributes_builder{
 		MarkerName: localActivityMarkerName,
 		Failure:    failure,
 		Details:    details,
-	}
+	}.Build()
 	command := h.newMarkerCommandStateMachine(markerID, attributes, metadata)
 	// LocalActivity marker is added only when it completes and schedule logic never relies on GenerateSequence to
 	// create a unique activity id like in the case of ExecuteActivity.  This causes the problem as we only perform
@@ -1375,14 +1372,14 @@ func (h *commandsHelper) recordMutableSideEffectMarker(mutableSideEffectID strin
 		panic(err)
 	}
 
-	attributes := &commandpb.RecordMarkerCommandAttributes{
+	attributes := commandpb.RecordMarkerCommandAttributes_builder{
 		MarkerName: mutableSideEffectMarkerName,
 		Details: map[string]*commonpb.Payloads{
 			sideEffectMarkerIDName:           mutableSideEffectIDPayload,
 			sideEffectMarkerDataName:         data,
 			mutableSideEffectCallCounterName: mutableSideEffectCounterPayload,
 		},
-	}
+	}.Build()
 	command := h.newMarkerCommandStateMachine(markerID, attributes, userMetadata)
 	h.addCommand(command)
 	return command
@@ -1399,7 +1396,7 @@ func (h *commandsHelper) startChildWorkflowExecution(
 ) (commandStateMachine, error) {
 	command := h.newChildWorkflowCommandStateMachine(attributes, startMetadata)
 	if h.commands[command.getID()] != nil {
-		return nil, &childWorkflowExistsWithId{id: attributes.WorkflowId}
+		return nil, &childWorkflowExistsWithId{id: attributes.GetWorkflowId()}
 	}
 	h.addCommand(command)
 	return command, nil
@@ -1448,13 +1445,13 @@ func (h *commandsHelper) requestCancelExternalWorkflowExecution(namespace, workf
 	if len(cancellationID) == 0 {
 		panic("cancellation on external workflow should use cancellation ID")
 	}
-	attributes := &commandpb.RequestCancelExternalWorkflowExecutionCommandAttributes{
+	attributes := commandpb.RequestCancelExternalWorkflowExecutionCommandAttributes_builder{
 		Namespace:         namespace,
 		WorkflowId:        workflowID,
 		RunId:             runID,
 		Control:           cancellationID,
 		ChildWorkflowOnly: false,
-	}
+	}.Build()
 	command := h.newCancelExternalWorkflowStateMachine(attributes, cancellationID)
 	h.addCommand(command)
 
@@ -1514,18 +1511,18 @@ func (h *commandsHelper) signalExternalWorkflowExecution(
 	signalID string,
 	childWorkflowOnly bool,
 ) commandStateMachine {
-	attributes := &commandpb.SignalExternalWorkflowExecutionCommandAttributes{
+	attributes := commandpb.SignalExternalWorkflowExecutionCommandAttributes_builder{
 		Namespace: namespace,
-		Execution: &commonpb.WorkflowExecution{
+		Execution: commonpb.WorkflowExecution_builder{
 			WorkflowId: workflowID,
 			RunId:      runID,
-		},
+		}.Build(),
 		SignalName:        signalName,
 		Input:             input,
 		Control:           signalID,
 		ChildWorkflowOnly: childWorkflowOnly,
 		Header:            header,
-	}
+	}.Build()
 	command := h.newSignalExternalWorkflowStateMachine(attributes, signalID)
 	h.addCommand(command)
 	return command
@@ -1533,9 +1530,7 @@ func (h *commandsHelper) signalExternalWorkflowExecution(
 
 func (h *commandsHelper) addProtocolMessage(msgID string) commandStateMachine {
 	cmd := createNewCommand(enumspb.COMMAND_TYPE_PROTOCOL_MESSAGE)
-	cmd.Attributes = &commandpb.Command_ProtocolMessageCommandAttributes{
-		ProtocolMessageCommandAttributes: &commandpb.ProtocolMessageCommandAttributes{MessageId: msgID},
-	}
+	cmd.SetProtocolMessageCommandAttributes(commandpb.ProtocolMessageCommandAttributes_builder{MessageId: msgID}.Build())
 	sm := &completeOnSendStateMachine{
 		naiveCommandStateMachine: h.newNaiveCommandStateMachine(commandTypeProtocolMessage, msgID, cmd),
 	}
@@ -1544,18 +1539,18 @@ func (h *commandsHelper) addProtocolMessage(msgID string) commandStateMachine {
 }
 
 func (h *commandsHelper) upsertSearchAttributes(upsertID string, searchAttr *commonpb.SearchAttributes) commandStateMachine {
-	attributes := &commandpb.UpsertWorkflowSearchAttributesCommandAttributes{
+	attributes := commandpb.UpsertWorkflowSearchAttributesCommandAttributes_builder{
 		SearchAttributes: searchAttr,
-	}
+	}.Build()
 	command := h.newUpsertSearchAttributesStateMachine(attributes, upsertID)
 	h.addCommand(command)
 	return command
 }
 
 func (h *commandsHelper) modifyProperties(changeID string, memo *commonpb.Memo) commandStateMachine {
-	attributes := &commandpb.ModifyWorkflowPropertiesCommandAttributes{
+	attributes := commandpb.ModifyWorkflowPropertiesCommandAttributes_builder{
 		UpsertedMemo: memo,
-	}
+	}.Build()
 	command := h.newModifyPropertiesStateMachine(attributes, changeID)
 	h.addCommand(command)
 	return command

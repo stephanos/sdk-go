@@ -32,12 +32,12 @@ import (
 var errNexusTaskTimeout = errors.New("nexus task timeout")
 
 func nexusHandlerError(t nexus.HandlerErrorType, message string) *nexuspb.HandlerError {
-	return &nexuspb.HandlerError{
+	return nexuspb.HandlerError_builder{
 		ErrorType: string(t),
-		Failure: &nexuspb.Failure{
+		Failure: nexuspb.Failure_builder{
 			Message: message,
-		},
-	}
+		}.Build(),
+	}.Build()
 }
 
 type nexusTaskHandler struct {
@@ -82,16 +82,16 @@ func newNexusTaskHandler(
 func (h *nexusTaskHandler) Execute(task *workflowservice.PollNexusTaskQueueResponse) (*workflowservice.RespondNexusTaskCompletedRequest, *workflowservice.RespondNexusTaskFailedRequest, error) {
 	nctx, handlerErr := h.newNexusOperationContext(task)
 	if handlerErr != nil {
-		return nil, h.fillInFailure(task.TaskToken, handlerErr), nil
+		return nil, h.fillInFailure(task.GetTaskToken(), handlerErr), nil
 	}
 	res, handlerErr, err := h.execute(nctx, task)
 	if err != nil {
 		return nil, nil, err
 	}
 	if handlerErr != nil {
-		return nil, h.fillInFailure(task.TaskToken, handlerErr), nil
+		return nil, h.fillInFailure(task.GetTaskToken(), handlerErr), nil
 	}
-	return h.fillInCompletion(task.TaskToken, res), nil, nil
+	return h.fillInCompletion(task.GetTaskToken(), res), nil, nil
 }
 
 func (h *nexusTaskHandler) ExecuteContext(nctx *NexusOperationContext, task *workflowservice.PollNexusTaskQueueResponse) (*workflowservice.RespondNexusTaskCompletedRequest, *workflowservice.RespondNexusTaskFailedRequest, error) {
@@ -100,9 +100,9 @@ func (h *nexusTaskHandler) ExecuteContext(nctx *NexusOperationContext, task *wor
 		return nil, nil, err
 	}
 	if handlerErr != nil {
-		return nil, h.fillInFailure(task.TaskToken, handlerErr), nil
+		return nil, h.fillInFailure(task.GetTaskToken(), handlerErr), nil
 	}
-	return h.fillInCompletion(task.TaskToken, res), nil, nil
+	return h.fillInCompletion(task.GetTaskToken(), res), nil, nil
 }
 
 func (h *nexusTaskHandler) execute(nctx *NexusOperationContext, task *workflowservice.PollNexusTaskQueueResponse) (*nexuspb.Response, *nexuspb.HandlerError, error) {
@@ -117,11 +117,11 @@ func (h *nexusTaskHandler) execute(nctx *NexusOperationContext, task *workflowse
 	}
 	defer cancel()
 
-	switch req := task.GetRequest().GetVariant().(type) {
-	case *nexuspb.Request_StartOperation:
-		return h.handleStartOperation(ctx, nctx, req.StartOperation, header)
-	case *nexuspb.Request_CancelOperation:
-		return h.handleCancelOperation(ctx, nctx, req.CancelOperation, header)
+	switch task.GetRequest().WhichVariant() {
+	case nexuspb.Request_StartOperation_case:
+		return h.handleStartOperation(ctx, nctx, task.GetRequest().GetStartOperation(), header)
+	case nexuspb.Request_CancelOperation_case:
+		return h.handleCancelOperation(ctx, nctx, task.GetRequest().GetCancelOperation(), header)
 	default:
 		return nil, nexusHandlerError(nexus.HandlerErrorTypeNotImplemented, "unknown request type"), nil
 	}
@@ -165,8 +165,8 @@ func (h *nexusTaskHandler) handleStartOperation(
 		})
 	}
 	startOptions := nexus.StartOperationOptions{
-		RequestID:      req.RequestId,
-		CallbackURL:    req.Callback,
+		RequestID:      req.GetRequestId(),
+		CallbackURL:    req.GetCallback(),
 		Header:         header,
 		CallbackHeader: callbackHeader,
 		Links:          nexusLinks,
@@ -213,18 +213,14 @@ func (h *nexusTaskHandler) handleStartOperation(
 				return nil, nil, err
 			}
 
-			return &nexuspb.Response{
-				Variant: &nexuspb.Response_StartOperation{
-					StartOperation: &nexuspb.StartOperationResponse{
-						Variant: &nexuspb.StartOperationResponse_OperationError{
-							OperationError: &nexuspb.UnsuccessfulOperationError{
-								OperationState: string(unsuccessfulOperationErr.State),
-								Failure:        failure,
-							},
-						},
-					},
-				},
-			}, nil, nil
+			return nexuspb.Response_builder{
+				StartOperation: nexuspb.StartOperationResponse_builder{
+					OperationError: nexuspb.UnsuccessfulOperationError_builder{
+						OperationState: string(unsuccessfulOperationErr.State),
+						Failure:        failure,
+					}.Build(),
+				}.Build(),
+			}.Build(), nil, nil
 		}
 		var handlerErr *nexus.HandlerError
 		if errors.As(err, &handlerErr) {
@@ -240,32 +236,28 @@ func (h *nexusTaskHandler) handleStartOperation(
 		nexusLinks := nexus.HandlerLinks(ctx)
 		links := make([]*nexuspb.Link, len(nexusLinks))
 		for i, nexusLink := range nexusLinks {
-			links[i] = &nexuspb.Link{
+			links[i] = nexuspb.Link_builder{
 				Url:  nexusLink.URL.String(),
 				Type: nexusLink.Type,
-			}
+			}.Build()
 		}
 		token := t.OperationToken
-		return &nexuspb.Response{
-			Variant: &nexuspb.Response_StartOperation{
-				StartOperation: &nexuspb.StartOperationResponse{
-					Variant: &nexuspb.StartOperationResponse_AsyncSuccess{
-						AsyncSuccess: &nexuspb.StartOperationResponse_Async{
-							OperationToken: token,
-							Links:          links,
-						},
-					},
-				},
-			},
-		}, nil, nil
+		return nexuspb.Response_builder{
+			StartOperation: nexuspb.StartOperationResponse_builder{
+				AsyncSuccess: nexuspb.StartOperationResponse_Async_builder{
+					OperationToken: token,
+					Links:          links,
+				}.Build(),
+			}.Build(),
+		}.Build(), nil, nil
 	default:
 		nexusLinks := nexus.HandlerLinks(ctx)
 		links := make([]*nexuspb.Link, len(nexusLinks))
 		for i, nexusLink := range nexusLinks {
-			links[i] = &nexuspb.Link{
+			links[i] = nexuspb.Link_builder{
 				Url:  nexusLink.URL.String(),
 				Type: nexusLink.Type,
-			}
+			}.Build()
 		}
 		// *nexus.HandlerStartOperationResultSync is generic, we can't type switch unfortunately.
 		value := reflect.ValueOf(t).Elem().FieldByName("Value").Interface()
@@ -275,18 +267,14 @@ func (h *nexusTaskHandler) handleStartOperation(
 			protoErr, err := h.internalError(fmt.Errorf("cannot convert nexus sync result: %w", err))
 			return nil, protoErr, err
 		}
-		return &nexuspb.Response{
-			Variant: &nexuspb.Response_StartOperation{
-				StartOperation: &nexuspb.StartOperationResponse{
-					Variant: &nexuspb.StartOperationResponse_SyncSuccess{
-						SyncSuccess: &nexuspb.StartOperationResponse_Sync{
-							Payload: payload,
-							Links:   links,
-						},
-					},
-				},
-			},
-		}, nil, nil
+		return nexuspb.Response_builder{
+			StartOperation: nexuspb.StartOperationResponse_builder{
+				SyncSuccess: nexuspb.StartOperationResponse_Sync_builder{
+					Payload: payload,
+					Links:   links,
+				}.Build(),
+			}.Build(),
+		}.Build(), nil, nil
 	}
 }
 
@@ -342,11 +330,9 @@ func (h *nexusTaskHandler) handleCancelOperation(ctx context.Context, nctx *Nexu
 		return nil, protoErr, err
 	}
 
-	return &nexuspb.Response{
-		Variant: &nexuspb.Response_CancelOperation{
-			CancelOperation: &nexuspb.CancelOperationResponse{},
-		},
-	}, nil, nil
+	return nexuspb.Response_builder{
+		CancelOperation: &nexuspb.CancelOperationResponse{},
+	}.Build(), nil, nil
 }
 
 func (h *nexusTaskHandler) internalError(err error) (*nexuspb.HandlerError, error) {
@@ -354,7 +340,7 @@ func (h *nexusTaskHandler) internalError(err error) (*nexuspb.HandlerError, erro
 	if err != nil {
 		return nil, err
 	}
-	return &nexuspb.HandlerError{ErrorType: string(nexus.HandlerErrorTypeInternal), Failure: failure}, nil
+	return nexuspb.HandlerError_builder{ErrorType: string(nexus.HandlerErrorTypeInternal), Failure: failure}.Build(), nil
 }
 
 func (h *nexusTaskHandler) goContextForTask(nctx *NexusOperationContext, header nexus.Header) (context.Context, context.CancelFunc, *nexuspb.HandlerError) {
@@ -378,13 +364,13 @@ func (h *nexusTaskHandler) goContextForTask(nctx *NexusOperationContext, header 
 func (h *nexusTaskHandler) newNexusOperationContext(response *workflowservice.PollNexusTaskQueueResponse) (*NexusOperationContext, *nexuspb.HandlerError) {
 	var service, operation string
 
-	switch req := response.GetRequest().GetVariant().(type) {
-	case *nexuspb.Request_StartOperation:
-		service = req.StartOperation.Service
-		operation = req.StartOperation.Operation
-	case *nexuspb.Request_CancelOperation:
-		service = req.CancelOperation.Service
-		operation = req.CancelOperation.Operation
+	switch response.GetRequest().WhichVariant() {
+	case nexuspb.Request_StartOperation_case:
+		service = response.GetRequest().GetStartOperation().GetService()
+		operation = response.GetRequest().GetStartOperation().GetOperation()
+	case nexuspb.Request_CancelOperation_case:
+		service = response.GetRequest().GetCancelOperation().GetService()
+		operation = response.GetRequest().GetCancelOperation().GetOperation()
 	default:
 		return nil, nexusHandlerError(nexus.HandlerErrorTypeNotImplemented, "unknown request type")
 	}
@@ -407,21 +393,21 @@ func (h *nexusTaskHandler) newNexusOperationContext(response *workflowservice.Po
 }
 
 func (h *nexusTaskHandler) fillInCompletion(taskToken []byte, res *nexuspb.Response) *workflowservice.RespondNexusTaskCompletedRequest {
-	return &workflowservice.RespondNexusTaskCompletedRequest{
+	return workflowservice.RespondNexusTaskCompletedRequest_builder{
 		Identity:  h.identity,
 		Namespace: h.namespace,
 		TaskToken: taskToken,
 		Response:  res,
-	}
+	}.Build()
 }
 
 func (h *nexusTaskHandler) fillInFailure(taskToken []byte, err *nexuspb.HandlerError) *workflowservice.RespondNexusTaskFailedRequest {
-	return &workflowservice.RespondNexusTaskFailedRequest{
+	return workflowservice.RespondNexusTaskFailedRequest_builder{
 		Identity:  h.identity,
 		Namespace: h.namespace,
 		TaskToken: taskToken,
 		Error:     err,
-	}
+	}.Build()
 }
 
 var nexusFailureTypeString = string((&failurepb.Failure{}).ProtoReflect().Descriptor().FullName())
@@ -432,17 +418,17 @@ func (h *nexusTaskHandler) errorToFailure(err error) (*nexuspb.Failure, error) {
 	if failure == nil {
 		return nil, nil
 	}
-	message := failure.Message
-	failure.Message = ""
+	message := failure.GetMessage()
+	failure.SetMessage("")
 	b, err := protojson.Marshal(failure)
 	if err != nil {
 		return nil, err
 	}
-	return &nexuspb.Failure{
+	return nexuspb.Failure_builder{
 		Message:  message,
 		Metadata: nexusFailureMetadata,
 		Details:  b,
-	}, nil
+	}.Build(), nil
 }
 
 func (h *nexusTaskHandler) nexusHandlerErrorToProto(handlerErr *nexus.HandlerError) (*nexuspb.HandlerError, error) {
@@ -457,11 +443,11 @@ func (h *nexusTaskHandler) nexusHandlerErrorToProto(handlerErr *nexus.HandlerErr
 	case nexus.HandlerErrorRetryBehaviorNonRetryable:
 		retryBehavior = enumspb.NEXUS_HANDLER_ERROR_RETRY_BEHAVIOR_NON_RETRYABLE
 	}
-	return &nexuspb.HandlerError{
+	return nexuspb.HandlerError_builder{
 		ErrorType:     string(handlerErr.Type),
 		Failure:       failure,
 		RetryBehavior: retryBehavior,
-	}, nil
+	}.Build(), nil
 }
 
 // payloadSerializer is a fake nexus Serializer that uses a data converter to read from an embedded payload instead of

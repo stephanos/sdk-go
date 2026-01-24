@@ -35,6 +35,7 @@ import (
 	"go.temporal.io/sdk/internal/common/serializer"
 	"go.temporal.io/sdk/internal/common/util"
 	"go.temporal.io/sdk/log"
+	"google.golang.org/protobuf/proto"
 )
 
 // Assert that structs do indeed implement the interfaces
@@ -244,7 +245,7 @@ func (wc *WorkflowClient) GetWorkflow(ctx context.Context, workflowID string, ru
 			if wei != nil {
 				execution := wei.GetExecution()
 				if execution != nil {
-					return execution.RunId
+					return execution.GetRunId()
 				}
 			}
 			return ""
@@ -387,17 +388,17 @@ func (wc *WorkflowClient) getWorkflowHistory(
 ) HistoryEventIterator {
 	namespace := wc.namespace
 	paginate := func(nextToken []byte) (*workflowservice.GetWorkflowExecutionHistoryResponse, error) {
-		request := &workflowservice.GetWorkflowExecutionHistoryRequest{
+		request := workflowservice.GetWorkflowExecutionHistoryRequest_builder{
 			Namespace: namespace,
-			Execution: &commonpb.WorkflowExecution{
+			Execution: commonpb.WorkflowExecution_builder{
 				WorkflowId: workflowID,
 				RunId:      runID,
-			},
+			}.Build(),
 			WaitNewEvent:           isLongPoll,
 			HistoryEventFilterType: filterType,
 			NextPageToken:          nextToken,
 			SkipArchival:           isLongPoll,
-		}
+		}.Build()
 
 		var response *workflowservice.GetWorkflowExecutionHistoryResponse
 		var err error
@@ -407,8 +408,8 @@ func (wc *WorkflowClient) getWorkflowHistory(
 			if err != nil {
 				return nil, err
 			}
-			if isLongPoll && len(response.History.Events) == 0 && len(response.NextPageToken) != 0 {
-				request.NextPageToken = response.NextPageToken
+			if isLongPoll && len(response.GetHistory().GetEvents()) == 0 && len(response.GetNextPageToken()) != 0 {
+				request.SetNextPageToken(response.GetNextPageToken())
 				continue Loop
 			}
 			break Loop
@@ -440,12 +441,12 @@ func (wc *WorkflowClient) getWorkflowExecutionHistory(ctx context.Context, rpcMe
 		return nil, err
 	}
 
-	if response.RawHistory != nil {
-		history, err := serializer.DeserializeBlobDataToHistoryEvents(response.RawHistory, filterType)
+	if response.GetRawHistory() != nil {
+		history, err := serializer.DeserializeBlobDataToHistoryEvents(response.GetRawHistory(), filterType)
 		if err != nil {
 			return nil, err
 		}
-		response.History = history
+		response.SetHistory(history)
 	}
 	return response, err
 }
@@ -549,7 +550,7 @@ func (wc *WorkflowClient) ListClosedWorkflow(ctx context.Context, request *workf
 	}
 
 	if request.GetNamespace() == "" {
-		request.Namespace = wc.namespace
+		request.SetNamespace(wc.namespace)
 	}
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
@@ -572,7 +573,7 @@ func (wc *WorkflowClient) ListOpenWorkflow(ctx context.Context, request *workflo
 	}
 
 	if request.GetNamespace() == "" {
-		request.Namespace = wc.namespace
+		request.SetNamespace(wc.namespace)
 	}
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
@@ -590,7 +591,7 @@ func (wc *WorkflowClient) ListWorkflow(ctx context.Context, request *workflowser
 	}
 
 	if request.GetNamespace() == "" {
-		request.Namespace = wc.namespace
+		request.SetNamespace(wc.namespace)
 	}
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
@@ -608,7 +609,7 @@ func (wc *WorkflowClient) ListArchivedWorkflow(ctx context.Context, request *wor
 	}
 
 	if request.GetNamespace() == "" {
-		request.Namespace = wc.namespace
+		request.SetNamespace(wc.namespace)
 	}
 	timeout := maxListArchivedWorkflowTimeout
 	now := time.Now()
@@ -640,7 +641,7 @@ func (wc *WorkflowClient) ScanWorkflow(ctx context.Context, request *workflowser
 	}
 
 	if request.GetNamespace() == "" {
-		request.Namespace = wc.namespace
+		request.SetNamespace(wc.namespace)
 	}
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
@@ -659,7 +660,7 @@ func (wc *WorkflowClient) CountWorkflow(ctx context.Context, request *workflowse
 	}
 
 	if request.GetNamespace() == "" {
-		request.Namespace = wc.namespace
+		request.SetNamespace(wc.namespace)
 	}
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
@@ -696,13 +697,13 @@ func (wc *WorkflowClient) DescribeWorkflowExecution(ctx context.Context, workflo
 		return nil, err
 	}
 
-	request := &workflowservice.DescribeWorkflowExecutionRequest{
+	request := workflowservice.DescribeWorkflowExecutionRequest_builder{
 		Namespace: wc.namespace,
-		Execution: &commonpb.WorkflowExecution{
+		Execution: commonpb.WorkflowExecution_builder{
 			WorkflowId: workflowID,
 			RunId:      runID,
-		},
-	}
+		}.Build(),
+	}.Build()
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
 	response, err := wc.workflowService.DescribeWorkflowExecution(grpcCtx, request)
@@ -1010,11 +1011,11 @@ func (wc *WorkflowClient) DescribeTaskQueue(ctx context.Context, taskQueue strin
 		return nil, err
 	}
 
-	request := &workflowservice.DescribeTaskQueueRequest{
+	request := workflowservice.DescribeTaskQueueRequest_builder{
 		Namespace:     wc.namespace,
-		TaskQueue:     &taskqueuepb.TaskQueue{Name: taskQueue, Kind: enumspb.TASK_QUEUE_KIND_NORMAL},
+		TaskQueue:     taskqueuepb.TaskQueue_builder{Name: taskQueue, Kind: enumspb.TASK_QUEUE_KIND_NORMAL}.Build(),
 		TaskQueueType: taskQueueType,
-	}
+	}.Build()
 
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
@@ -1035,7 +1036,7 @@ func (wc *WorkflowClient) ResetWorkflowExecution(ctx context.Context, request *w
 	}
 
 	if request != nil && request.GetRequestId() == "" {
-		request.RequestId = uuid.NewString()
+		request.SetRequestId(uuid.NewString())
 	}
 
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
@@ -1060,7 +1061,7 @@ func (wc *WorkflowClient) UpdateWorkerBuildIdCompatibility(ctx context.Context, 
 	if err != nil {
 		return err
 	}
-	request.Namespace = wc.namespace
+	request.SetNamespace(wc.namespace)
 
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
@@ -1080,11 +1081,11 @@ func (wc *WorkflowClient) GetWorkerBuildIdCompatibility(ctx context.Context, opt
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
 
-	request := &workflowservice.GetWorkerBuildIdCompatibilityRequest{
+	request := workflowservice.GetWorkerBuildIdCompatibilityRequest_builder{
 		Namespace: wc.namespace,
 		TaskQueue: options.TaskQueue,
 		MaxSets:   int32(options.MaxSets),
-	}
+	}.Build()
 	resp, err := wc.workflowService.GetWorkerBuildIdCompatibility(grpcCtx, request)
 	if err != nil {
 		return nil, err
@@ -1102,12 +1103,12 @@ func (wc *WorkflowClient) GetWorkerTaskReachability(ctx context.Context, options
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
 
-	request := &workflowservice.GetWorkerTaskReachabilityRequest{
+	request := workflowservice.GetWorkerTaskReachabilityRequest_builder{
 		Namespace:    wc.namespace,
 		BuildIds:     options.BuildIDs,
 		TaskQueues:   options.TaskQueues,
 		Reachability: taskReachabilityToProto(options.Reachability),
-	}
+	}.Build()
 	resp, err := wc.workflowService.GetWorkerTaskReachability(grpcCtx, request)
 	if err != nil {
 		return nil, err
@@ -1221,13 +1222,13 @@ func (wc *WorkflowClient) GetWorkflowUpdateHandle(ref GetWorkflowUpdateHandleOpt
 	return &lazyUpdateHandle{
 		client: wc,
 		baseUpdateHandle: baseUpdateHandle{
-			ref: &updatepb.UpdateRef{
-				WorkflowExecution: &commonpb.WorkflowExecution{
+			ref: updatepb.UpdateRef_builder{
+				WorkflowExecution: commonpb.WorkflowExecution_builder{
 					WorkflowId: ref.WorkflowID,
 					RunId:      ref.RunID,
-				},
+				}.Build(),
 				UpdateId: ref.UpdateID,
-			},
+			}.Build(),
 		},
 	}
 }
@@ -1350,8 +1351,8 @@ func (wc *WorkflowClient) loadCapabilities(ctx context.Context) (*workflowservic
 	if _, isUnimplemented := err.(*serviceerror.Unimplemented); err != nil && !isUnimplemented {
 		return nil, fmt.Errorf("failed reaching server: %w", err)
 	}
-	if resp != nil && resp.Capabilities != nil {
-		capabilities = resp.Capabilities
+	if resp != nil && resp.HasCapabilities() {
+		capabilities = resp.GetCapabilities()
 	} else {
 		capabilities = &workflowservice.GetSystemInfoResponse_Capabilities{}
 	}
@@ -1361,7 +1362,7 @@ func (wc *WorkflowClient) loadCapabilities(ctx context.Context) (*workflowservic
 	wc.capabilitiesLock.Lock()
 	wc.capabilities = capabilities
 	// Also set whether we exclude internal from retry
-	wc.excludeInternalFromRetry.Store(capabilities.InternalErrorDifferentiation)
+	wc.excludeInternalFromRetry.Store(capabilities.GetInternalErrorDifferentiation())
 	wc.capabilitiesLock.Unlock()
 	return capabilities, nil
 }
@@ -1441,9 +1442,9 @@ func (nc *namespaceClient) Register(ctx context.Context, request *workflowservic
 //   - serviceerror.Internal
 //   - serviceerror.Unavailable
 func (nc *namespaceClient) Describe(ctx context.Context, namespace string) (*workflowservice.DescribeNamespaceResponse, error) {
-	request := &workflowservice.DescribeNamespaceRequest{
+	request := workflowservice.DescribeNamespaceRequest_builder{
 		Namespace: namespace,
-	}
+	}.Build()
 
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
@@ -1485,8 +1486,8 @@ func (iter *historyEventIteratorImpl) HasNext() bool {
 		response, err := iter.paginate(iter.nexttoken)
 		iter.nextEventIndex = 0
 		if err == nil {
-			iter.events = response.History.Events
-			iter.nexttoken = response.NextPageToken
+			iter.events = response.GetHistory().GetEvents()
+			iter.nexttoken = response.GetNextPageToken()
 			iter.err = nil
 		} else {
 			iter.events = nil
@@ -1555,51 +1556,51 @@ func (workflowRun *workflowRunImpl) GetWithOptions(
 	switch closeEvent.GetEventType() {
 	case enumspb.EVENT_TYPE_WORKFLOW_EXECUTION_COMPLETED:
 		attributes := closeEvent.GetWorkflowExecutionCompletedEventAttributes()
-		if !options.DisableFollowingRuns && attributes.NewExecutionRunId != "" {
-			return workflowRun.follow(ctx, valuePtr, attributes.NewExecutionRunId, options)
+		if !options.DisableFollowingRuns && attributes.GetNewExecutionRunId() != "" {
+			return workflowRun.follow(ctx, valuePtr, attributes.GetNewExecutionRunId(), options)
 		}
-		if valuePtr == nil || attributes.Result == nil {
+		if valuePtr == nil || !attributes.HasResult() {
 			return nil
 		}
 		rf := reflect.ValueOf(valuePtr)
 		if rf.Type().Kind() != reflect.Ptr {
 			return errors.New("value parameter is not a pointer")
 		}
-		return workflowRun.dataConverter.FromPayloads(attributes.Result, valuePtr)
+		return workflowRun.dataConverter.FromPayloads(attributes.GetResult(), valuePtr)
 	case enumspb.EVENT_TYPE_WORKFLOW_EXECUTION_FAILED:
 		attributes := closeEvent.GetWorkflowExecutionFailedEventAttributes()
-		if !options.DisableFollowingRuns && attributes.NewExecutionRunId != "" {
-			return workflowRun.follow(ctx, valuePtr, attributes.NewExecutionRunId, options)
+		if !options.DisableFollowingRuns && attributes.GetNewExecutionRunId() != "" {
+			return workflowRun.follow(ctx, valuePtr, attributes.GetNewExecutionRunId(), options)
 		}
 		err = workflowRun.failureConverter.FailureToError(attributes.GetFailure())
 	case enumspb.EVENT_TYPE_WORKFLOW_EXECUTION_CANCELED:
 		attributes := closeEvent.GetWorkflowExecutionCanceledEventAttributes()
-		details := newEncodedValues(attributes.Details, workflowRun.dataConverter)
+		details := newEncodedValues(attributes.GetDetails(), workflowRun.dataConverter)
 		err = NewCanceledError(details)
 	case enumspb.EVENT_TYPE_WORKFLOW_EXECUTION_TERMINATED:
 		err = newTerminatedError()
 	case enumspb.EVENT_TYPE_WORKFLOW_EXECUTION_TIMED_OUT:
 		attributes := closeEvent.GetWorkflowExecutionTimedOutEventAttributes()
-		if !options.DisableFollowingRuns && attributes.NewExecutionRunId != "" {
-			return workflowRun.follow(ctx, valuePtr, attributes.NewExecutionRunId, options)
+		if !options.DisableFollowingRuns && attributes.GetNewExecutionRunId() != "" {
+			return workflowRun.follow(ctx, valuePtr, attributes.GetNewExecutionRunId(), options)
 		}
 		err = NewTimeoutError("Workflow timeout", enumspb.TIMEOUT_TYPE_START_TO_CLOSE, nil)
 	case enumspb.EVENT_TYPE_WORKFLOW_EXECUTION_CONTINUED_AS_NEW:
 		attributes := closeEvent.GetWorkflowExecutionContinuedAsNewEventAttributes()
 		if !options.DisableFollowingRuns {
-			return workflowRun.follow(ctx, valuePtr, attributes.NewExecutionRunId, options)
+			return workflowRun.follow(ctx, valuePtr, attributes.GetNewExecutionRunId(), options)
 		}
 		err := &ContinueAsNewError{
 			WorkflowType:  &WorkflowType{Name: attributes.GetWorkflowType().GetName()},
-			Input:         attributes.Input,
-			Header:        attributes.Header,
+			Input:         attributes.GetInput(),
+			Header:        attributes.GetHeader(),
 			TaskQueueName: attributes.GetTaskQueue().GetName(),
 		}
-		if attributes.WorkflowRunTimeout != nil {
-			err.WorkflowRunTimeout = attributes.WorkflowRunTimeout.AsDuration()
+		if attributes.HasWorkflowRunTimeout() {
+			err.WorkflowRunTimeout = attributes.GetWorkflowRunTimeout().AsDuration()
 		}
-		if attributes.WorkflowTaskTimeout != nil {
-			err.WorkflowTaskTimeout = attributes.WorkflowTaskTimeout.AsDuration()
+		if attributes.HasWorkflowTaskTimeout() {
+			err.WorkflowTaskTimeout = attributes.GetWorkflowTaskTimeout().AsDuration()
 		}
 		return err
 	default:
@@ -1644,7 +1645,7 @@ func getWorkflowMemo(input map[string]interface{}, dc converter.DataConverter) (
 		}
 		memo[k] = memoBytes
 	}
-	return &commonpb.Memo{Fields: memo}, nil
+	return commonpb.Memo_builder{Fields: memo}.Build(), nil
 }
 
 type workflowClientInterceptor struct {
@@ -1717,11 +1718,11 @@ func (w *workflowClientInterceptor) createStartWorkflowRequest(
 	}
 
 	// run propagators to extract information about tracing and other stuff, store in headers field
-	startRequest := &workflowservice.StartWorkflowExecutionRequest{
+	startRequest := workflowservice.StartWorkflowExecutionRequest_builder{
 		Namespace:                w.client.namespace,
 		WorkflowId:               workflowID,
-		WorkflowType:             &commonpb.WorkflowType{Name: in.WorkflowType},
-		TaskQueue:                &taskqueuepb.TaskQueue{Name: in.Options.TaskQueue, Kind: enumspb.TASK_QUEUE_KIND_NORMAL},
+		WorkflowType:             commonpb.WorkflowType_builder{Name: in.WorkflowType}.Build(),
+		TaskQueue:                taskqueuepb.TaskQueue_builder{Name: in.Options.TaskQueue, Kind: enumspb.TASK_QUEUE_KIND_NORMAL}.Build(),
 		Input:                    input,
 		WorkflowExecutionTimeout: durationpb.New(executionTimeout),
 		WorkflowRunTimeout:       durationpb.New(runTimeout),
@@ -1739,21 +1740,22 @@ func (w *workflowClientInterceptor) createStartWorkflowRequest(
 		VersioningOverride:       versioningOverrideToProto(in.Options.VersioningOverride),
 		OnConflictOptions:        in.Options.onConflictOptions.ToProto(),
 		Priority:                 convertToPBPriority(in.Options.Priority),
-	}
+	}.Build()
 
-	startRequest.UserMetadata, err = buildUserMetadata(in.Options.StaticSummary, in.Options.StaticDetails, dataConverter)
+	userMetadata, err := buildUserMetadata(in.Options.StaticSummary, in.Options.StaticDetails, dataConverter)
 	if err != nil {
 		return nil, err
 	}
+	startRequest.SetUserMetadata(userMetadata)
 
 	if in.Options.requestID != "" {
-		startRequest.RequestId = in.Options.requestID
+		startRequest.SetRequestId(in.Options.requestID)
 	} else {
-		startRequest.RequestId = uuid.NewString()
+		startRequest.SetRequestId(uuid.NewString())
 	}
 
 	if in.Options.StartDelay != 0 {
-		startRequest.WorkflowStartDelay = durationpb.New(in.Options.StartDelay)
+		startRequest.SetWorkflowStartDelay(durationpb.New(in.Options.StartDelay))
 	}
 
 	return startRequest, nil
@@ -1767,7 +1769,7 @@ func (w *workflowClientInterceptor) ExecuteWorkflow(
 	if err != nil {
 		return nil, err
 	}
-	workflowID := startRequest.WorkflowId
+	workflowID := startRequest.GetWorkflowId()
 
 	var eagerExecutor *eagerWorkflowExecutor
 	if in.Options.EnableEagerStart && w.client.capabilities.GetEagerWorkflowStart() && w.client.eagerDispatcher != nil {
@@ -1795,7 +1797,7 @@ func (w *workflowClientInterceptor) ExecuteWorkflow(
 	} else if err != nil {
 		return nil, err
 	} else {
-		runID = response.RunId
+		runID = response.GetRunId()
 	}
 
 	if responseInfo := in.Options.responseInfo; responseInfo != nil {
@@ -1853,8 +1855,8 @@ func (w *workflowClientInterceptor) UpdateWithStartWorkflow(
 	if err != nil {
 		return nil, err
 	}
-	if updateReq.WorkflowExecution.WorkflowId == "" {
-		updateReq.WorkflowExecution.WorkflowId = startReq.WorkflowId
+	if updateReq.GetWorkflowExecution().GetWorkflowId() == "" {
+		updateReq.GetWorkflowExecution().SetWorkflowId(startReq.GetWorkflowId())
 	}
 
 	iterFn := func(fnCtx context.Context, fnRunID string) HistoryEventIterator {
@@ -1864,11 +1866,11 @@ func (w *workflowClientInterceptor) UpdateWithStartWorkflow(
 			enumspb.HISTORY_EVENT_FILTER_TYPE_CLOSE_EVENT, metricsHandler)
 	}
 	onStart := func(startResp *workflowservice.StartWorkflowExecutionResponse) {
-		runIDCell := util.PopulatedOnceCell(startResp.RunId)
+		runIDCell := util.PopulatedOnceCell(startResp.GetRunId())
 		startOp.set(&workflowRunImpl{
 			workflowType:     startOp.input.WorkflowType,
 			workflowID:       startOp.input.Options.ID,
-			firstRunID:       startResp.RunId,
+			firstRunID:       startResp.GetRunId(),
 			currentRunID:     &runIDCell,
 			iterFn:           iterFn,
 			dataConverter:    w.client.dataConverter,
@@ -1885,7 +1887,7 @@ func (w *workflowClientInterceptor) UpdateWithStartWorkflow(
 		return nil, err
 	}
 
-	handle, err := w.updateHandleFromResponse(ctx, updateReq.WaitPolicy.LifecycleStage, updateResp)
+	handle, err := w.updateHandleFromResponse(ctx, updateReq.GetWaitPolicy().GetLifecycleStage(), updateResp)
 	if err != nil {
 		return nil, err
 	}
@@ -1903,23 +1905,19 @@ func (w *workflowClientInterceptor) updateWithStartWorkflow(
 	onStart func(*workflowservice.StartWorkflowExecutionResponse),
 	rpcMetricsHandler metrics.Handler,
 ) (*workflowservice.UpdateWorkflowExecutionResponse, error) {
-	startOp := &workflowservice.ExecuteMultiOperationRequest_Operation{
-		Operation: &workflowservice.ExecuteMultiOperationRequest_Operation_StartWorkflow{
-			StartWorkflow: startRequest,
-		},
-	}
-	updateOp := &workflowservice.ExecuteMultiOperationRequest_Operation{
-		Operation: &workflowservice.ExecuteMultiOperationRequest_Operation_UpdateWorkflow{
-			UpdateWorkflow: updateRequest,
-		},
-	}
-	multiRequest := workflowservice.ExecuteMultiOperationRequest{
+	startOp := workflowservice.ExecuteMultiOperationRequest_Operation_builder{
+		StartWorkflow: proto.ValueOrDefault(startRequest),
+	}.Build()
+	updateOp := workflowservice.ExecuteMultiOperationRequest_Operation_builder{
+		UpdateWorkflow: proto.ValueOrDefault(updateRequest),
+	}.Build()
+	multiRequest := workflowservice.ExecuteMultiOperationRequest_builder{
 		Namespace: w.client.namespace,
 		Operations: []*workflowservice.ExecuteMultiOperationRequest_Operation{
 			startOp,
 			updateOp,
 		},
-	}
+	}.Build()
 
 	var updateResp *workflowservice.UpdateWorkflowExecutionResponse
 	seenStart := false
@@ -1933,7 +1931,7 @@ func (w *workflowClientInterceptor) updateWithStartWorkflow(
 				defaultGrpcRetryParameters(ctx))
 			defer cancel()
 
-			multiResp, err := w.client.workflowService.ExecuteMultiOperation(grpcCtx, &multiRequest)
+			multiResp, err := w.client.workflowService.ExecuteMultiOperation(grpcCtx, multiRequest)
 			if err != nil {
 				if ctx.Err() != nil {
 					return nil, NewWorkflowUpdateServiceTimeoutOrCanceledError(err)
@@ -1949,13 +1947,13 @@ func (w *workflowClientInterceptor) updateWithStartWorkflow(
 
 		var multiErr *serviceerror.MultiOperationExecution
 		if errors.As(err, &multiErr) {
-			if len(multiErr.OperationErrors()) != len(multiRequest.Operations) {
+			if len(multiErr.OperationErrors()) != len(multiRequest.GetOperations()) {
 				return nil, fmt.Errorf("%w: %v instead of %v operation errors",
-					errInvalidServerResponse, len(multiErr.OperationErrors()), len(multiRequest.Operations))
+					errInvalidServerResponse, len(multiErr.OperationErrors()), len(multiRequest.GetOperations()))
 			}
 
 			var abortedErr *serviceerror.MultiOperationAborted
-			for i, opReq := range multiRequest.Operations {
+			for i, opReq := range multiRequest.GetOperations() {
 				// if an operation error is of type MultiOperationAborted, it means it was only aborted because
 				// of another operation's error and is therefore not interesting or helpful
 				opErr := multiErr.OperationErrors()[i]
@@ -1963,18 +1961,18 @@ func (w *workflowClientInterceptor) updateWithStartWorkflow(
 					continue
 				}
 
-				switch t := opReq.Operation.(type) {
-				case *workflowservice.ExecuteMultiOperationRequest_Operation_StartWorkflow:
+				switch t := opReq.WhichOperation(); t {
+				case workflowservice.ExecuteMultiOperationRequest_Operation_StartWorkflow_case:
 					if !errors.As(opErr, &abortedErr) {
 						return nil, fmt.Errorf("failed workflow start: %w", opErr)
 					}
-				case *workflowservice.ExecuteMultiOperationRequest_Operation_UpdateWorkflow:
+				case workflowservice.ExecuteMultiOperationRequest_Operation_UpdateWorkflow_case:
 					if !errors.As(opErr, &abortedErr) {
 						return nil, fmt.Errorf("failed workflow update: %w", opErr)
 					}
 				default:
 					// this would only happen if a case statement for a newly added operation is missing above
-					return nil, fmt.Errorf("%w: %T", errUnsupportedOperation, t)
+					return nil, fmt.Errorf("%w: %v", errUnsupportedOperation, t)
 				}
 			}
 
@@ -1984,33 +1982,33 @@ func (w *workflowClientInterceptor) updateWithStartWorkflow(
 			return nil, err
 		}
 
-		if len(multiResp.Responses) != len(multiRequest.Operations) {
+		if len(multiResp.GetResponses()) != len(multiRequest.GetOperations()) {
 			return nil, fmt.Errorf("%w: %v instead of %v operation results",
-				errInvalidServerResponse, len(multiResp.Responses), len(multiRequest.Operations))
+				errInvalidServerResponse, len(multiResp.GetResponses()), len(multiRequest.GetOperations()))
 		}
 
-		for i, opReq := range multiRequest.Operations {
-			resp := multiResp.Responses[i].Response
+		for i, opReq := range multiRequest.GetOperations() {
+			respWrapper := multiResp.GetResponses()[i]
 
-			switch t := opReq.Operation.(type) {
-			case *workflowservice.ExecuteMultiOperationRequest_Operation_StartWorkflow:
-				if opResp, ok := resp.(*workflowservice.ExecuteMultiOperationResponse_Response_StartWorkflow); ok {
+			switch t := opReq.WhichOperation(); t {
+			case workflowservice.ExecuteMultiOperationRequest_Operation_StartWorkflow_case:
+				if respWrapper.WhichResponse() == workflowservice.ExecuteMultiOperationResponse_Response_StartWorkflow_case {
 					if !seenStart {
-						onStart(opResp.StartWorkflow)
+						onStart(respWrapper.GetStartWorkflow())
 						seenStart = true
 					}
 				} else {
-					return nil, fmt.Errorf("%w: StartWorkflow response has the wrong type %T", errInvalidServerResponse, resp)
+					return nil, fmt.Errorf("%w: StartWorkflow response has the wrong type %v", errInvalidServerResponse, respWrapper.WhichResponse())
 				}
-			case *workflowservice.ExecuteMultiOperationRequest_Operation_UpdateWorkflow:
-				if opResp, ok := resp.(*workflowservice.ExecuteMultiOperationResponse_Response_UpdateWorkflow); ok {
-					updateResp = opResp.UpdateWorkflow
+			case workflowservice.ExecuteMultiOperationRequest_Operation_UpdateWorkflow_case:
+				if respWrapper.WhichResponse() == workflowservice.ExecuteMultiOperationResponse_Response_UpdateWorkflow_case {
+					updateResp = respWrapper.GetUpdateWorkflow()
 				} else {
-					return nil, fmt.Errorf("%w: UpdateWorkflow response has the wrong type %T", errInvalidServerResponse, resp)
+					return nil, fmt.Errorf("%w: UpdateWorkflow response has the wrong type %v", errInvalidServerResponse, respWrapper.WhichResponse())
 				}
 			default:
 				// this would only happen if a case statement for a newly added operation is missing above
-				return nil, fmt.Errorf("%w: %T", errUnsupportedOperation, t)
+				return nil, fmt.Errorf("%w: %v", errUnsupportedOperation, t)
 			}
 		}
 
@@ -2036,23 +2034,23 @@ func (w *workflowClientInterceptor) SignalWorkflow(ctx context.Context, in *Clie
 
 	links, _ := ctx.Value(NexusOperationLinksKey).([]*commonpb.Link)
 
-	request := &workflowservice.SignalWorkflowExecutionRequest{
+	request := workflowservice.SignalWorkflowExecutionRequest_builder{
 		Namespace: w.client.namespace,
-		WorkflowExecution: &commonpb.WorkflowExecution{
+		WorkflowExecution: commonpb.WorkflowExecution_builder{
 			WorkflowId: in.WorkflowID,
 			RunId:      in.RunID,
-		},
+		}.Build(),
 		SignalName: in.SignalName,
 		Input:      input,
 		Identity:   w.client.identity,
 		Header:     header,
 		Links:      links,
-	}
+	}.Build()
 
 	if requestID, ok := ctx.Value(NexusOperationRequestIDKey).(string); ok && requestID != "" {
-		request.RequestId = requestID
+		request.SetRequestId(requestID)
 	} else {
-		request.RequestId = uuid.NewString()
+		request.SetRequestId(uuid.NewString())
 	}
 
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
@@ -2097,12 +2095,12 @@ func (w *workflowClientInterceptor) SignalWithStartWorkflow(
 		return nil, err
 	}
 
-	signalWithStartRequest := &workflowservice.SignalWithStartWorkflowExecutionRequest{
+	signalWithStartRequest := workflowservice.SignalWithStartWorkflowExecutionRequest_builder{
 		Namespace:                w.client.namespace,
 		RequestId:                uuid.NewString(),
 		WorkflowId:               in.Options.ID,
-		WorkflowType:             &commonpb.WorkflowType{Name: in.WorkflowType},
-		TaskQueue:                &taskqueuepb.TaskQueue{Name: in.Options.TaskQueue, Kind: enumspb.TASK_QUEUE_KIND_NORMAL},
+		WorkflowType:             commonpb.WorkflowType_builder{Name: in.WorkflowType}.Build(),
+		TaskQueue:                taskqueuepb.TaskQueue_builder{Name: in.Options.TaskQueue, Kind: enumspb.TASK_QUEUE_KIND_NORMAL}.Build(),
 		Input:                    input,
 		WorkflowExecutionTimeout: durationpb.New(executionTimeout),
 		WorkflowRunTimeout:       durationpb.New(runTimeout),
@@ -2119,16 +2117,17 @@ func (w *workflowClientInterceptor) SignalWithStartWorkflow(
 		Header:                   header,
 		VersioningOverride:       versioningOverrideToProto(in.Options.VersioningOverride),
 		Priority:                 convertToPBPriority(in.Options.Priority),
-	}
+	}.Build()
 
 	if in.Options.StartDelay != 0 {
-		signalWithStartRequest.WorkflowStartDelay = durationpb.New(in.Options.StartDelay)
+		signalWithStartRequest.SetWorkflowStartDelay(durationpb.New(in.Options.StartDelay))
 	}
 
-	signalWithStartRequest.UserMetadata, err = buildUserMetadata(in.Options.StaticSummary, in.Options.StaticDetails, dataConverter)
+	signalUserMetadata, err := buildUserMetadata(in.Options.StaticSummary, in.Options.StaticDetails, dataConverter)
 	if err != nil {
 		return nil, err
 	}
+	signalWithStartRequest.SetUserMetadata(signalUserMetadata)
 
 	var response *workflowservice.SignalWithStartWorkflowExecutionResponse
 
@@ -2162,15 +2161,15 @@ func (w *workflowClientInterceptor) SignalWithStartWorkflow(
 }
 
 func (w *workflowClientInterceptor) CancelWorkflow(ctx context.Context, in *ClientCancelWorkflowInput) error {
-	request := &workflowservice.RequestCancelWorkflowExecutionRequest{
+	request := workflowservice.RequestCancelWorkflowExecutionRequest_builder{
 		Namespace: w.client.namespace,
 		RequestId: uuid.NewString(),
-		WorkflowExecution: &commonpb.WorkflowExecution{
+		WorkflowExecution: commonpb.WorkflowExecution_builder{
 			WorkflowId: in.WorkflowID,
 			RunId:      in.RunID,
-		},
+		}.Build(),
 		Identity: w.client.identity,
-	}
+	}.Build()
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
 	_, err := w.client.workflowService.RequestCancelWorkflowExecution(grpcCtx, request)
@@ -2183,16 +2182,16 @@ func (w *workflowClientInterceptor) TerminateWorkflow(ctx context.Context, in *C
 		return err
 	}
 
-	request := &workflowservice.TerminateWorkflowExecutionRequest{
+	request := workflowservice.TerminateWorkflowExecutionRequest_builder{
 		Namespace: w.client.namespace,
-		WorkflowExecution: &commonpb.WorkflowExecution{
+		WorkflowExecution: commonpb.WorkflowExecution_builder{
 			WorkflowId: in.WorkflowID,
 			RunId:      in.RunID,
-		},
+		}.Build(),
 		Reason:   in.Reason,
 		Identity: w.client.identity,
 		Details:  datailsPayload,
-	}
+	}.Build()
 
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
@@ -2205,13 +2204,13 @@ func (w *workflowClientInterceptor) DescribeWorkflow(
 	in *ClientDescribeWorkflowInput,
 ) (*ClientDescribeWorkflowOutput, error) {
 
-	req := &workflowservice.DescribeWorkflowExecutionRequest{
+	req := workflowservice.DescribeWorkflowExecutionRequest_builder{
 		Namespace: w.client.namespace,
-		Execution: &commonpb.WorkflowExecution{
+		Execution: commonpb.WorkflowExecution_builder{
 			WorkflowId: in.WorkflowID,
 			RunId:      in.RunID,
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
@@ -2233,7 +2232,7 @@ func (w *workflowClientInterceptor) DescribeWorkflow(
 	}
 
 	var parentWorkflowExecution *WorkflowExecution
-	if info.ParentExecution != nil {
+	if info.HasParentExecution() {
 		parentWorkflowExecution = &WorkflowExecution{
 			ID:    info.GetParentExecution().GetWorkflowId(),
 			RunID: info.GetParentExecution().GetRunId(),
@@ -2241,7 +2240,7 @@ func (w *workflowClientInterceptor) DescribeWorkflow(
 	}
 
 	var rootWorkflowExecution *WorkflowExecution
-	if info.RootExecution != nil {
+	if info.HasRootExecution() {
 		rootWorkflowExecution = &WorkflowExecution{
 			ID:    info.GetRootExecution().GetWorkflowId(),
 			RunID: info.GetRootExecution().GetRunId(),
@@ -2257,8 +2256,8 @@ func (w *workflowClientInterceptor) DescribeWorkflow(
 			Name: info.GetType().GetName(),
 		},
 		TaskQueueName:           info.GetTaskQueue(),
-		Memo:                    info.Memo,
-		TypedSearchAttributes:   convertToTypedSearchAttributes(w.client.logger, info.GetSearchAttributes().IndexedFields),
+		Memo:                    info.GetMemo(),
+		TypedSearchAttributes:   convertToTypedSearchAttributes(w.client.logger, info.GetSearchAttributes().GetIndexedFields()),
 		Status:                  info.GetStatus(),
 		ParentWorkflowExecution: parentWorkflowExecution,
 		RootWorkflowExecution:   rootWorkflowExecution,
@@ -2296,19 +2295,19 @@ func (w *workflowClientInterceptor) QueryWorkflow(
 			return nil, err
 		}
 	}
-	req := &workflowservice.QueryWorkflowRequest{
+	req := workflowservice.QueryWorkflowRequest_builder{
 		Namespace: w.client.namespace,
-		Execution: &commonpb.WorkflowExecution{
+		Execution: commonpb.WorkflowExecution_builder{
 			WorkflowId: in.WorkflowID,
 			RunId:      in.RunID,
-		},
-		Query: &querypb.WorkflowQuery{
+		}.Build(),
+		Query: querypb.WorkflowQuery_builder{
 			QueryType: in.QueryType,
 			QueryArgs: input,
 			Header:    header,
-		},
+		}.Build(),
 		QueryRejectCondition: in.QueryRejectCondition,
-	}
+	}.Build()
 
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
@@ -2317,12 +2316,12 @@ func (w *workflowClientInterceptor) QueryWorkflow(
 		return nil, err
 	}
 
-	if resp.QueryRejected != nil {
+	if resp.HasQueryRejected() {
 		return nil, &QueryRejectedError{
-			queryRejected: resp.QueryRejected,
+			queryRejected: resp.GetQueryRejected(),
 		}
 	}
-	return newEncodedValue(resp.QueryResult, w.client.dataConverter), nil
+	return newEncodedValue(resp.GetQueryResult(), w.client.dataConverter), nil
 }
 
 func (w *workflowClientInterceptor) UpdateWorkflow(
@@ -2413,26 +2412,26 @@ func (w *workflowClientInterceptor) createUpdateWorkflowRequest(
 		return nil, err
 	}
 
-	return &workflowservice.UpdateWorkflowExecutionRequest{
-		WaitPolicy: &updatepb.WaitPolicy{LifecycleStage: updateLifeCycleStageToProto(in.WaitForStage)},
+	return workflowservice.UpdateWorkflowExecutionRequest_builder{
+		WaitPolicy: updatepb.WaitPolicy_builder{LifecycleStage: updateLifeCycleStageToProto(in.WaitForStage)}.Build(),
 		Namespace:  w.client.namespace,
-		WorkflowExecution: &commonpb.WorkflowExecution{
+		WorkflowExecution: commonpb.WorkflowExecution_builder{
 			WorkflowId: in.WorkflowID,
 			RunId:      in.RunID,
-		},
+		}.Build(),
 		FirstExecutionRunId: in.FirstExecutionRunID,
-		Request: &updatepb.Request{
-			Meta: &updatepb.Meta{
+		Request: updatepb.Request_builder{
+			Meta: updatepb.Meta_builder{
 				UpdateId: in.UpdateID,
 				Identity: w.client.identity,
-			},
-			Input: &updatepb.Input{
+			}.Build(),
+			Input: updatepb.Input_builder{
 				Header: header,
 				Name:   in.UpdateName,
 				Args:   argPayloads,
-			},
-		},
-	}, nil
+			}.Build(),
+		}.Build(),
+	}.Build(), nil
 }
 
 func (w *workflowClientInterceptor) PollWorkflowUpdate(
@@ -2442,14 +2441,14 @@ func (w *workflowClientInterceptor) PollWorkflowUpdate(
 	// header, _ = headerPropagated(ctx, w.client.contextPropagators)
 	// todo header not in PollWorkflowUpdate
 
-	pollReq := workflowservice.PollWorkflowExecutionUpdateRequest{
+	pollReq := workflowservice.PollWorkflowExecutionUpdateRequest_builder{
 		Namespace: w.client.namespace,
 		UpdateRef: in.UpdateRef,
 		Identity:  w.client.identity,
-		WaitPolicy: &updatepb.WaitPolicy{
+		WaitPolicy: updatepb.WaitPolicy_builder{
 			LifecycleStage: enumspb.UPDATE_WORKFLOW_EXECUTION_LIFECYCLE_STAGE_COMPLETED,
-		},
-	}
+		}.Build(),
+	}.Build()
 	for {
 		ctx, cancel := newGRPCContext(
 			parentCtx,
@@ -2461,7 +2460,7 @@ func (w *workflowClientInterceptor) PollWorkflowUpdate(
 			retry.ConfigKey,
 			createDynamicServiceRetryPolicy(ctx).GrpcRetryConfig(),
 		)
-		resp, err := w.client.workflowService.PollWorkflowExecutionUpdate(ctx, &pollReq)
+		resp, err := w.client.workflowService.PollWorkflowExecutionUpdate(ctx, pollReq)
 		cancel()
 		if err == nil && resp.GetOutcome() == nil {
 			continue
@@ -2475,17 +2474,17 @@ func (w *workflowClientInterceptor) PollWorkflowUpdate(
 			}
 			return nil, err
 		}
-		switch v := resp.GetOutcome().GetValue().(type) {
-		case *updatepb.Outcome_Failure:
+		switch v := resp.GetOutcome().WhichValue(); v {
+		case updatepb.Outcome_Failure_case:
 			return &ClientPollWorkflowUpdateOutput{
-				Error: w.client.failureConverter.FailureToError(v.Failure),
+				Error: w.client.failureConverter.FailureToError(resp.GetOutcome().GetFailure()),
 			}, nil
-		case *updatepb.Outcome_Success:
+		case updatepb.Outcome_Success_case:
 			return &ClientPollWorkflowUpdateOutput{
-				Result: newEncodedValue(v.Success, w.client.dataConverter),
+				Result: newEncodedValue(resp.GetOutcome().GetSuccess(), w.client.dataConverter),
 			}, nil
 		default:
-			return nil, fmt.Errorf("unsupported outcome type %T", v)
+			return nil, fmt.Errorf("unsupported outcome type %v", v)
 		}
 	}
 }
@@ -2518,24 +2517,24 @@ func (w *workflowClientInterceptor) updateHandleFromResponse(
 		}
 	}
 
-	switch v := resp.GetOutcome().GetValue().(type) {
-	case nil:
+	switch resp.GetOutcome().WhichValue() {
+	case 0:
 		return &lazyUpdateHandle{
 			client:           w.client,
 			baseUpdateHandle: baseUpdateHandle{ref: resp.GetUpdateRef()},
 		}, nil
-	case *updatepb.Outcome_Failure:
+	case updatepb.Outcome_Failure_case:
 		return &completedUpdateHandle{
-			err:              w.client.failureConverter.FailureToError(v.Failure),
+			err:              w.client.failureConverter.FailureToError(resp.GetOutcome().GetFailure()),
 			baseUpdateHandle: baseUpdateHandle{ref: resp.GetUpdateRef()},
 		}, nil
-	case *updatepb.Outcome_Success:
+	case updatepb.Outcome_Success_case:
 		return &completedUpdateHandle{
-			value:            newEncodedValue(v.Success, w.client.dataConverter),
+			value:            newEncodedValue(resp.GetOutcome().GetSuccess(), w.client.dataConverter),
 			baseUpdateHandle: baseUpdateHandle{ref: resp.GetUpdateRef()},
 		}, nil
 	}
-	return nil, fmt.Errorf("unsupported outcome type %T", resp.GetOutcome().GetValue())
+	return nil, fmt.Errorf("unsupported outcome type %v", resp.GetOutcome().WhichValue())
 }
 
 func (uh *baseUpdateHandle) WorkflowID() string {
@@ -2576,7 +2575,7 @@ func (q *QueryRejectedError) QueryRejected() *querypb.QueryRejected {
 }
 
 func (q *QueryRejectedError) Error() string {
-	return fmt.Sprintf("query rejected: %s", q.queryRejected.Status.String())
+	return fmt.Sprintf("query rejected: %s", q.queryRejected.GetStatus().String())
 }
 
 func buildUserMetadata(
@@ -2588,16 +2587,19 @@ func buildUserMetadata(
 		return nil, nil
 	}
 	ret := &sdk.UserMetadata{}
-	var err error
 	if summary != "" {
-		if ret.Summary, err = dataConverter.ToPayload(summary); err != nil {
+		summaryPayload, err := dataConverter.ToPayload(summary)
+		if err != nil {
 			return nil, fmt.Errorf("failed converting summary to payload: %w", err)
 		}
+		ret.SetSummary(summaryPayload)
 	}
 	if details != "" {
-		if ret.Details, err = dataConverter.ToPayload(details); err != nil {
+		detailsPayload, err := dataConverter.ToPayload(details)
+		if err != nil {
 			return nil, fmt.Errorf("failed converting details to payload: %w", err)
 		}
+		ret.SetDetails(detailsPayload)
 	}
 	return ret, nil
 }

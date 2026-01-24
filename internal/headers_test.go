@@ -19,25 +19,25 @@ func TestHeaderWriter(t *testing.T) {
 	}{
 		{
 			"no values",
-			&commonpb.Header{
+			commonpb.Header_builder{
 				Fields: map[string]*commonpb.Payload{},
-			},
-			&commonpb.Header{
+			}.Build(),
+			commonpb.Header_builder{
 				Fields: map[string]*commonpb.Payload{},
-			},
+			}.Build(),
 			map[string]*commonpb.Payload{},
 		},
 		{
 			"add values",
-			&commonpb.Header{
+			commonpb.Header_builder{
 				Fields: map[string]*commonpb.Payload{},
-			},
-			&commonpb.Header{
+			}.Build(),
+			commonpb.Header_builder{
 				Fields: map[string]*commonpb.Payload{
 					"key1": encodeString(t, "val1"),
 					"key2": encodeString(t, "val2"),
 				},
-			},
+			}.Build(),
 			map[string]*commonpb.Payload{
 				"key1": encodeString(t, "val1"),
 				"key2": encodeString(t, "val2"),
@@ -45,17 +45,17 @@ func TestHeaderWriter(t *testing.T) {
 		},
 		{
 			"overwrite values",
-			&commonpb.Header{
+			commonpb.Header_builder{
 				Fields: map[string]*commonpb.Payload{
 					"key1": encodeString(t, "unexpected"),
 				},
-			},
-			&commonpb.Header{
+			}.Build(),
+			commonpb.Header_builder{
 				Fields: map[string]*commonpb.Payload{
 					"key1": encodeString(t, "val1"),
 					"key2": encodeString(t, "val2"),
 				},
-			},
+			}.Build(),
 			map[string]*commonpb.Payload{
 				"key1": encodeString(t, "val1"),
 				"key2": encodeString(t, "val2"),
@@ -92,23 +92,23 @@ func TestHeaderReader_ForEachKey(t *testing.T) {
 	}{
 		{
 			"valid values",
-			&commonpb.Header{
+			commonpb.Header_builder{
 				Fields: map[string]*commonpb.Payload{
 					"key1": encodeString(t, "val1"),
 					"key2": encodeString(t, "val2"),
 				},
-			},
+			}.Build(),
 			map[string]struct{}{"key1": {}, "key2": {}},
 			false,
 		},
 		{
 			"invalid values",
-			&commonpb.Header{
+			commonpb.Header_builder{
 				Fields: map[string]*commonpb.Payload{
 					"key1": encodeString(t, "val1"),
 					"key2": encodeString(t, "val2"),
 				},
-			},
+			}.Build(),
 			map[string]struct{}{"key2": {}},
 			true,
 		},
@@ -144,23 +144,23 @@ func TestHeaderReader_Get(t *testing.T) {
 	}{
 		{
 			"valid key",
-			&commonpb.Header{
+			commonpb.Header_builder{
 				Fields: map[string]*commonpb.Payload{
 					"key1": encodeString(t, "val1"),
 					"key2": encodeString(t, "val2"),
 				},
-			},
+			}.Build(),
 			"key1",
 			true,
 		},
 		{
 			"invalid key",
-			&commonpb.Header{
+			commonpb.Header_builder{
 				Fields: map[string]*commonpb.Payload{
 					"key1": encodeString(t, "val1"),
 					"key2": encodeString(t, "val2"),
 				},
-			},
+			}.Build(),
 			"key3",
 			false,
 		},

@@ -37,7 +37,7 @@ type (
 func (iter *deploymentListIteratorImpl) HasNext() bool {
 	if iter.err == nil &&
 		(iter.response == nil ||
-			(iter.nextDeploymentIndex >= len(iter.response.Deployments) && len(iter.response.NextPageToken) > 0)) {
+			(iter.nextDeploymentIndex >= len(iter.response.GetDeployments()) && len(iter.response.GetNextPageToken()) > 0)) {
 		iter.response, iter.err = iter.paginate(iter.response.GetNextPageToken())
 		iter.nextDeploymentIndex = 0
 	}
@@ -51,7 +51,7 @@ func (iter *deploymentListIteratorImpl) Next() (*DeploymentListEntry, error) {
 	} else if iter.err != nil {
 		return nil, iter.err
 	}
-	deployment := iter.response.Deployments[iter.nextDeploymentIndex]
+	deployment := iter.response.GetDeployments()[iter.nextDeploymentIndex]
 	iter.nextDeploymentIndex++
 	return deploymentListEntryFromProto(deployment), nil
 }
@@ -64,10 +64,10 @@ func deploymentFromProto(deployment *deployment.Deployment) Deployment {
 }
 
 func deploymentToProto(deploymentID Deployment) *deployment.Deployment {
-	return &deployment.Deployment{
+	return deployment.Deployment_builder{
 		SeriesName: deploymentID.SeriesName,
 		BuildId:    deploymentID.BuildID,
-	}
+	}.Build()
 }
 
 func deploymentListEntryFromProto(deployment *deployment.DeploymentListInfo) *DeploymentListEntry {
@@ -139,10 +139,10 @@ func deploymentMetadataUpdateToProto(dc converter.DataConverter, update Deployme
 		}
 	}
 
-	return &deployment.UpdateDeploymentMetadata{
+	return deployment.UpdateDeploymentMetadata_builder{
 		UpsertEntries: upsertEntries,
 		RemoveEntries: update.RemoveEntries,
-	}
+	}.Build()
 }
 
 func (dc *deploymentClient) List(ctx context.Context, options DeploymentListOptions) (DeploymentListIterator, error) {
@@ -155,12 +155,12 @@ func (dc *deploymentClient) List(ctx context.Context, options DeploymentListOpti
 		}
 		grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 		defer cancel()
-		request := &workflowservice.ListDeploymentsRequest{
+		request := workflowservice.ListDeploymentsRequest_builder{
 			Namespace:     dc.workflowClient.namespace,
 			PageSize:      int32(options.PageSize),
 			NextPageToken: nextToken,
 			SeriesName:    options.SeriesName,
-		}
+		}.Build()
 
 		return dc.workflowClient.workflowService.ListDeployments(grpcCtx, request)
 	}
@@ -193,10 +193,10 @@ func (dc *deploymentClient) Describe(ctx context.Context, options DeploymentDesc
 		return DeploymentDescription{}, err
 	}
 
-	request := &workflowservice.DescribeDeploymentRequest{
+	request := workflowservice.DescribeDeploymentRequest_builder{
 		Namespace:  dc.workflowClient.namespace,
 		Deployment: deploymentToProto(options.Deployment),
-	}
+	}.Build()
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
 
@@ -219,10 +219,10 @@ func (dc *deploymentClient) GetReachability(ctx context.Context, options Deploym
 		return DeploymentReachabilityInfo{}, err
 	}
 
-	request := &workflowservice.GetDeploymentReachabilityRequest{
+	request := workflowservice.GetDeploymentReachabilityRequest_builder{
 		Namespace:  dc.workflowClient.namespace,
 		Deployment: deploymentToProto(options.Deployment),
-	}
+	}.Build()
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
 
@@ -245,10 +245,10 @@ func (dc *deploymentClient) GetCurrent(ctx context.Context, options DeploymentGe
 		return DeploymentGetCurrentResponse{}, errors.New("missing series name argument")
 	}
 
-	request := &workflowservice.GetCurrentDeploymentRequest{
+	request := workflowservice.GetCurrentDeploymentRequest_builder{
 		Namespace:  dc.workflowClient.namespace,
 		SeriesName: options.SeriesName,
-	}
+	}.Build()
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
 
@@ -270,12 +270,12 @@ func (dc *deploymentClient) SetCurrent(ctx context.Context, options DeploymentSe
 		return DeploymentSetCurrentResponse{}, err
 	}
 
-	request := &workflowservice.SetCurrentDeploymentRequest{
+	request := workflowservice.SetCurrentDeploymentRequest_builder{
 		Namespace:      dc.workflowClient.namespace,
 		Deployment:     deploymentToProto(options.Deployment),
 		Identity:       dc.workflowClient.identity,
 		UpdateMetadata: deploymentMetadataUpdateToProto(dc.workflowClient.dataConverter, options.MetadataUpdate),
-	}
+	}.Build()
 	grpcCtx, cancel := newGRPCContext(ctx, defaultGrpcRetryParameters(ctx))
 	defer cancel()
 

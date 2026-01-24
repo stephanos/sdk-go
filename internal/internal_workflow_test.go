@@ -1053,7 +1053,7 @@ const (
 
 func getMemoTest(ctx Context) (result string, err error) {
 	info := GetWorkflowInfo(ctx)
-	val, ok := info.Memo.Fields[memoTestKey]
+	val, ok := info.Memo.GetFields()[memoTestKey]
 	if !ok {
 		return "", errors.New("no memo found")
 	}

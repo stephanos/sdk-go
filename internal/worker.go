@@ -466,11 +466,11 @@ func workerDeploymentOptionsToProto(useVersioning bool, version WorkerDeployment
 		} else {
 			workerVersioningMode = enumspb.WORKER_VERSIONING_MODE_UNVERSIONED
 		}
-		return &deploymentpb.WorkerDeploymentOptions{
+		return deploymentpb.WorkerDeploymentOptions_builder{
 			DeploymentName:       version.DeploymentName,
 			BuildId:              version.BuildID,
 			WorkerVersioningMode: workerVersioningMode,
-		}
+		}.Build()
 	}
 	return nil
 }

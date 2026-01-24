@@ -20,21 +20,21 @@ func Test_DetectEnhancedNotSupported_fromProtoResponse(t *testing.T) {
 	}{
 		{
 			name: "enhanced task queue info",
-			response: &workflowservice.DescribeTaskQueueResponse{
+			response: workflowservice.DescribeTaskQueueResponse_builder{
 				VersionsInfo: map[string]*taskqueuepb.TaskQueueVersionInfo{
-					"one": {
+					"one": taskqueuepb.TaskQueueVersionInfo_builder{
 						TypesInfo:        map[int32]*taskqueuepb.TaskQueueTypeInfo{},
 						TaskReachability: enumspb.BUILD_ID_TASK_REACHABILITY_REACHABLE,
-					},
+					}.Build(),
 				},
-			},
+			}.Build(),
 			want: nil,
 		},
 		{
 			name: "legacy task queue info",
-			response: &workflowservice.DescribeTaskQueueResponse{
+			response: workflowservice.DescribeTaskQueueResponse_builder{
 				TaskQueueStatus: &taskqueuepb.TaskQueueStatus{},
-			},
+			}.Build(),
 			want: errors.New("server does not support `DescribeTaskQueueEnhanced`"),
 		},
 		{
@@ -66,26 +66,26 @@ func Test_TaskQueueDescription_fromProtoResponse(t *testing.T) {
 		},
 		{
 			name: "normal task queue info",
-			response: &workflowservice.DescribeTaskQueueResponse{
+			response: workflowservice.DescribeTaskQueueResponse_builder{
 				VersionsInfo: map[string]*taskqueuepb.TaskQueueVersionInfo{
-					"one": {
+					"one": taskqueuepb.TaskQueueVersionInfo_builder{
 						TypesInfo: map[int32]*taskqueuepb.TaskQueueTypeInfo{
-							int32(enumspb.TASK_QUEUE_TYPE_WORKFLOW): {
+							int32(enumspb.TASK_QUEUE_TYPE_WORKFLOW): taskqueuepb.TaskQueueTypeInfo_builder{
 								Pollers: []*taskqueuepb.PollerInfo{
-									{LastAccessTime: nowProto, Identity: "me", RatePerSecond: 3.0, WorkerVersionCapabilities: &common.WorkerVersionCapabilities{BuildId: "1.0", UseVersioning: true, DeploymentSeriesName: "prod1"}},
+									taskqueuepb.PollerInfo_builder{LastAccessTime: nowProto, Identity: "me", RatePerSecond: 3.0, WorkerVersionCapabilities: common.WorkerVersionCapabilities_builder{BuildId: "1.0", UseVersioning: true, DeploymentSeriesName: "prod1"}.Build()}.Build(),
 								},
-							},
+							}.Build(),
 						},
 						TaskReachability: enumspb.BUILD_ID_TASK_REACHABILITY_REACHABLE,
-					},
+					}.Build(),
 				},
-				VersioningInfo: &taskqueuepb.TaskQueueVersioningInfo{
+				VersioningInfo: taskqueuepb.TaskQueueVersioningInfo_builder{
 					CurrentVersion:           "foo.build1",
 					RampingVersion:           "foo.build2",
 					RampingVersionPercentage: 3.0,
 					UpdateTime:               nowProto,
-				},
-			},
+				}.Build(),
+			}.Build(),
 			want: TaskQueueDescription{
 				VersionsInfo: map[string]TaskQueueVersionInfo{
 					"one": {

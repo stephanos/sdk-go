@@ -72,14 +72,14 @@ func (dfc *DefaultFailureConverter) ErrorToFailure(err error) *failurepb.Failure
 		}
 	}
 
-	failure := &failurepb.Failure{
+	failure := failurepb.Failure_builder{
 		Source: "GoSDK",
-	}
+	}.Build()
 
 	if m, ok := err.(messenger); ok && m != nil {
-		failure.Message = m.message()
+		failure.SetMessage(m.message())
 	} else {
-		failure.Message = err.Error()
+		failure.SetMessage(err.Error())
 	}
 
 	switch err := err.(type) {
@@ -88,80 +88,80 @@ func (dfc *DefaultFailureConverter) ErrorToFailure(err error) *failurepb.Failure
 		if err.nextRetryDelay != 0 {
 			delay = durationpb.New(err.nextRetryDelay)
 		}
-		failureInfo := &failurepb.ApplicationFailureInfo{
+		failureInfo := failurepb.ApplicationFailureInfo_builder{
 			Type:           err.errType,
 			NonRetryable:   err.NonRetryable(),
 			Details:        convertErrDetailsToPayloads(err.details, dfc.dataConverter),
 			NextRetryDelay: delay,
 			Category:       enumspb.ApplicationErrorCategory(err.Category()),
-		}
-		failure.FailureInfo = &failurepb.Failure_ApplicationFailureInfo{ApplicationFailureInfo: failureInfo}
+		}.Build()
+		failure.SetApplicationFailureInfo(proto.ValueOrDefault(failureInfo))
 	case *CanceledError:
-		failureInfo := &failurepb.CanceledFailureInfo{
+		failureInfo := failurepb.CanceledFailureInfo_builder{
 			Details: convertErrDetailsToPayloads(err.details, dfc.dataConverter),
-		}
-		failure.FailureInfo = &failurepb.Failure_CanceledFailureInfo{CanceledFailureInfo: failureInfo}
+		}.Build()
+		failure.SetCanceledFailureInfo(proto.ValueOrDefault(failureInfo))
 	case *PanicError:
-		failureInfo := &failurepb.ApplicationFailureInfo{
+		failureInfo := failurepb.ApplicationFailureInfo_builder{
 			Type: getErrType(err),
-		}
-		failure.FailureInfo = &failurepb.Failure_ApplicationFailureInfo{ApplicationFailureInfo: failureInfo}
-		failure.StackTrace = err.StackTrace()
+		}.Build()
+		failure.SetApplicationFailureInfo(proto.ValueOrDefault(failureInfo))
+		failure.SetStackTrace(err.StackTrace())
 	case *workflowPanicError:
-		failureInfo := &failurepb.ApplicationFailureInfo{
+		failureInfo := failurepb.ApplicationFailureInfo_builder{
 			Type:         getErrType(&PanicError{}),
 			NonRetryable: true,
-		}
-		failure.FailureInfo = &failurepb.Failure_ApplicationFailureInfo{ApplicationFailureInfo: failureInfo}
-		failure.StackTrace = err.StackTrace()
+		}.Build()
+		failure.SetApplicationFailureInfo(proto.ValueOrDefault(failureInfo))
+		failure.SetStackTrace(err.StackTrace())
 	case *TimeoutError:
-		failureInfo := &failurepb.TimeoutFailureInfo{
+		failureInfo := failurepb.TimeoutFailureInfo_builder{
 			TimeoutType:          err.timeoutType,
 			LastHeartbeatDetails: convertErrDetailsToPayloads(err.lastHeartbeatDetails, dfc.dataConverter),
-		}
-		failure.FailureInfo = &failurepb.Failure_TimeoutFailureInfo{TimeoutFailureInfo: failureInfo}
+		}.Build()
+		failure.SetTimeoutFailureInfo(proto.ValueOrDefault(failureInfo))
 	case *TerminatedError:
 		failureInfo := &failurepb.TerminatedFailureInfo{}
-		failure.FailureInfo = &failurepb.Failure_TerminatedFailureInfo{TerminatedFailureInfo: failureInfo}
+		failure.SetTerminatedFailureInfo(proto.ValueOrDefault(failureInfo))
 	case *ServerError:
-		failureInfo := &failurepb.ServerFailureInfo{
+		failureInfo := failurepb.ServerFailureInfo_builder{
 			NonRetryable: err.nonRetryable,
-		}
-		failure.FailureInfo = &failurepb.Failure_ServerFailureInfo{ServerFailureInfo: failureInfo}
+		}.Build()
+		failure.SetServerFailureInfo(proto.ValueOrDefault(failureInfo))
 	case *ActivityError:
-		failureInfo := &failurepb.ActivityFailureInfo{
+		failureInfo := failurepb.ActivityFailureInfo_builder{
 			ScheduledEventId: err.scheduledEventID,
 			StartedEventId:   err.startedEventID,
 			Identity:         err.identity,
 			ActivityType:     err.activityType,
 			ActivityId:       err.activityID,
 			RetryState:       err.retryState,
-		}
-		failure.FailureInfo = &failurepb.Failure_ActivityFailureInfo{ActivityFailureInfo: failureInfo}
+		}.Build()
+		failure.SetActivityFailureInfo(proto.ValueOrDefault(failureInfo))
 	case *ChildWorkflowExecutionError:
-		failureInfo := &failurepb.ChildWorkflowExecutionFailureInfo{
+		failureInfo := failurepb.ChildWorkflowExecutionFailureInfo_builder{
 			Namespace: err.namespace,
-			WorkflowExecution: &commonpb.WorkflowExecution{
+			WorkflowExecution: commonpb.WorkflowExecution_builder{
 				WorkflowId: err.workflowID,
 				RunId:      err.runID,
-			},
-			WorkflowType:     &commonpb.WorkflowType{Name: err.workflowType},
+			}.Build(),
+			WorkflowType:     commonpb.WorkflowType_builder{Name: err.workflowType}.Build(),
 			InitiatedEventId: err.initiatedEventID,
 			StartedEventId:   err.startedEventID,
 			RetryState:       err.retryState,
-		}
-		failure.FailureInfo = &failurepb.Failure_ChildWorkflowExecutionFailureInfo{ChildWorkflowExecutionFailureInfo: failureInfo}
+		}.Build()
+		failure.SetChildWorkflowExecutionFailureInfo(proto.ValueOrDefault(failureInfo))
 	case *NexusOperationError:
 		var token = err.OperationToken
-		failureInfo := &failurepb.NexusOperationFailureInfo{
+		failureInfo := failurepb.NexusOperationFailureInfo_builder{
 			ScheduledEventId: err.ScheduledEventID,
 			Endpoint:         err.Endpoint,
 			Service:          err.Service,
 			Operation:        err.Operation,
 			OperationId:      token,
 			OperationToken:   token,
-		}
-		failure.FailureInfo = &failurepb.Failure_NexusOperationExecutionFailureInfo{NexusOperationExecutionFailureInfo: failureInfo}
+		}.Build()
+		failure.SetNexusOperationExecutionFailureInfo(proto.ValueOrDefault(failureInfo))
 	case *nexus.HandlerError:
 		var retryBehavior enumspb.NexusHandlerErrorRetryBehavior
 		switch err.RetryBehavior {
@@ -170,20 +170,20 @@ func (dfc *DefaultFailureConverter) ErrorToFailure(err error) *failurepb.Failure
 		case nexus.HandlerErrorRetryBehaviorNonRetryable:
 			retryBehavior = enumspb.NEXUS_HANDLER_ERROR_RETRY_BEHAVIOR_NON_RETRYABLE
 		}
-		failureInfo := &failurepb.NexusHandlerFailureInfo{
+		failureInfo := failurepb.NexusHandlerFailureInfo_builder{
 			Type:          string(err.Type),
 			RetryBehavior: retryBehavior,
-		}
-		failure.FailureInfo = &failurepb.Failure_NexusHandlerFailureInfo{NexusHandlerFailureInfo: failureInfo}
+		}.Build()
+		failure.SetNexusHandlerFailureInfo(proto.ValueOrDefault(failureInfo))
 	default: // All unknown errors are considered to be retryable ApplicationFailureInfo.
-		failureInfo := &failurepb.ApplicationFailureInfo{
+		failureInfo := failurepb.ApplicationFailureInfo_builder{
 			Type:         getErrType(err),
 			NonRetryable: false,
-		}
-		failure.FailureInfo = &failurepb.Failure_ApplicationFailureInfo{ApplicationFailureInfo: failureInfo}
+		}.Build()
+		failure.SetApplicationFailureInfo(proto.ValueOrDefault(failureInfo))
 	}
 
-	failure.Cause = dfc.ErrorToFailure(errors.Unwrap(err))
+	failure.SetCause(dfc.ErrorToFailure(errors.Unwrap(err)))
 
 	if dfc.encodeCommonAttributes {
 		err := converter.EncodeCommonFailureAttributes(dfc.dataConverter, failure)
@@ -277,7 +277,7 @@ func (dfc *DefaultFailureConverter) FailureToError(failure *failurepb.Failure) e
 			token = info.GetOperationId()
 		}
 		err = &NexusOperationError{
-			Message:          failure.Message,
+			Message:          failure.GetMessage(),
 			Cause:            dfc.FailureToError(failure.GetCause()),
 			Failure:          originalFailure,
 			ScheduledEventID: info.GetScheduledEventId(),
@@ -288,14 +288,14 @@ func (dfc *DefaultFailureConverter) FailureToError(failure *failurepb.Failure) e
 		}
 	} else if info := failure.GetNexusHandlerFailureInfo(); info != nil {
 		var retryBehavior nexus.HandlerErrorRetryBehavior
-		switch info.RetryBehavior {
+		switch info.GetRetryBehavior() {
 		case enumspb.NEXUS_HANDLER_ERROR_RETRY_BEHAVIOR_RETRYABLE:
 			retryBehavior = nexus.HandlerErrorRetryBehaviorRetryable
 		case enumspb.NEXUS_HANDLER_ERROR_RETRY_BEHAVIOR_NON_RETRYABLE:
 			retryBehavior = nexus.HandlerErrorRetryBehaviorNonRetryable
 		}
 		err = &nexus.HandlerError{
-			Type:          nexus.HandlerErrorType(info.Type),
+			Type:          nexus.HandlerErrorType(info.GetType()),
 			Cause:         dfc.FailureToError(failure.GetCause()),
 			RetryBehavior: retryBehavior,
 		}

@@ -15,9 +15,9 @@ import (
 func Test_TimerStateMachine_CancelBeforeSent(t *testing.T) {
 	t.Parallel()
 	timerID := "test-timer-1"
-	attributes := &commandpb.StartTimerCommandAttributes{
+	attributes := commandpb.StartTimerCommandAttributes_builder{
 		TimerId: timerID,
-	}
+	}.Build()
 	h := newCommandsHelper()
 	d := h.startTimer(attributes, TimerOptions{}, converter.GetDefaultDataConverter())
 	require.Equal(t, commandStateCreated, d.getState())
@@ -32,9 +32,9 @@ func Test_TimerStateMachine_CancelBeforeSent(t *testing.T) {
 func Test_TimerStateMachine_CancelAfterInitiated(t *testing.T) {
 	t.Parallel()
 	timerID := "test-timer-1"
-	attributes := &commandpb.StartTimerCommandAttributes{
+	attributes := commandpb.StartTimerCommandAttributes_builder{
 		TimerId: timerID,
-	}
+	}.Build()
 	h := newCommandsHelper()
 	d := h.startTimer(attributes, TimerOptions{}, converter.GetDefaultDataConverter())
 	require.Equal(t, commandStateCreated, d.getState())
@@ -58,9 +58,9 @@ func Test_TimerStateMachine_CancelAfterInitiated(t *testing.T) {
 func Test_TimerStateMachine_CompletedAfterCancel(t *testing.T) {
 	t.Parallel()
 	timerID := "test-timer-1"
-	attributes := &commandpb.StartTimerCommandAttributes{
+	attributes := commandpb.StartTimerCommandAttributes_builder{
 		TimerId: timerID,
-	}
+	}.Build()
 	h := newCommandsHelper()
 	d := h.startTimer(attributes, TimerOptions{}, converter.GetDefaultDataConverter())
 	require.Equal(t, commandStateCreated, d.getState())
@@ -86,9 +86,9 @@ func Test_TimerStateMachine_CompletedAfterCancel(t *testing.T) {
 func Test_TimerStateMachine_CompleteWithoutCancel(t *testing.T) {
 	t.Parallel()
 	timerID := "test-timer-1"
-	attributes := &commandpb.StartTimerCommandAttributes{
+	attributes := commandpb.StartTimerCommandAttributes_builder{
 		TimerId: timerID,
-	}
+	}.Build()
 	h := newCommandsHelper()
 	d := h.startTimer(attributes, TimerOptions{}, converter.GetDefaultDataConverter())
 	require.Equal(t, commandStateCreated, d.getState())
@@ -107,9 +107,9 @@ func Test_TimerCancelEventOrdering(t *testing.T) {
 	t.Parallel()
 	timerID := "test-timer-1"
 	localActivityID := "test-activity-1"
-	attributes := &commandpb.StartTimerCommandAttributes{
+	attributes := commandpb.StartTimerCommandAttributes_builder{
 		TimerId: timerID,
-	}
+	}.Build()
 	h := newCommandsHelper()
 	d := h.startTimer(attributes, TimerOptions{}, converter.GetDefaultDataConverter())
 	require.Equal(t, commandStateCreated, d.getState())
@@ -133,9 +133,9 @@ func Test_TimerCancelEventOrdering(t *testing.T) {
 func Test_ActivityStateMachine_CompleteWithoutCancel(t *testing.T) {
 	t.Parallel()
 	activityID := "test-activity-1"
-	attributes := &commandpb.ScheduleActivityTaskCommandAttributes{
+	attributes := commandpb.ScheduleActivityTaskCommandAttributes_builder{
 		ActivityId: activityID,
-	}
+	}.Build()
 	h := newCommandsHelper()
 	h.setCurrentWorkflowTaskStartedEventID(3)
 
@@ -160,9 +160,9 @@ func Test_ActivityStateMachine_CompleteWithoutCancel(t *testing.T) {
 func Test_ActivityStateMachine_CancelBeforeSent(t *testing.T) {
 	t.Parallel()
 	activityID := "test-activity-1"
-	attributes := &commandpb.ScheduleActivityTaskCommandAttributes{
+	attributes := commandpb.ScheduleActivityTaskCommandAttributes_builder{
 		ActivityId: activityID,
-	}
+	}.Build()
 	h := newCommandsHelper()
 	h.setCurrentWorkflowTaskStartedEventID(3)
 
@@ -183,9 +183,9 @@ func Test_ActivityStateMachine_CancelBeforeSent(t *testing.T) {
 func Test_ActivityStateMachine_CancelAfterSent(t *testing.T) {
 	t.Parallel()
 	activityID := "test-activity-1"
-	attributes := &commandpb.ScheduleActivityTaskCommandAttributes{
+	attributes := commandpb.ScheduleActivityTaskCommandAttributes_builder{
 		ActivityId: activityID,
-	}
+	}.Build()
 	h := newCommandsHelper()
 	h.setCurrentWorkflowTaskStartedEventID(3)
 
@@ -219,9 +219,9 @@ func Test_ActivityStateMachine_CancelAfterSent(t *testing.T) {
 func Test_ActivityStateMachine_CompletedAfterCancel(t *testing.T) {
 	t.Parallel()
 	activityID := "test-activity-1"
-	attributes := &commandpb.ScheduleActivityTaskCommandAttributes{
+	attributes := commandpb.ScheduleActivityTaskCommandAttributes_builder{
 		ActivityId: activityID,
-	}
+	}.Build()
 	h := newCommandsHelper()
 	h.setCurrentWorkflowTaskStartedEventID(3)
 
@@ -255,9 +255,9 @@ func Test_ActivityStateMachine_CompletedAfterCancel(t *testing.T) {
 func Test_ActivityStateMachine_CancelInitiated_After_CanceledBeforeSent(t *testing.T) {
 	t.Parallel()
 	activityID := "test-activity-1"
-	attributes := &commandpb.ScheduleActivityTaskCommandAttributes{
+	attributes := commandpb.ScheduleActivityTaskCommandAttributes_builder{
 		ActivityId: activityID,
-	}
+	}.Build()
 	h := newCommandsHelper()
 	h.setCurrentWorkflowTaskStartedEventID(3)
 
@@ -292,9 +292,9 @@ func Test_ActivityStateMachine_CancelInitiated_After_CanceledBeforeSent(t *testi
 func Test_ActivityStateMachine_PanicInvalidStateTransition(t *testing.T) {
 	t.Parallel()
 	activityID := "test-activity-1"
-	attributes := &commandpb.ScheduleActivityTaskCommandAttributes{
+	attributes := commandpb.ScheduleActivityTaskCommandAttributes_builder{
 		ActivityId: activityID,
-	}
+	}.Build()
 	h := newCommandsHelper()
 	h.setCurrentWorkflowTaskStartedEventID(3)
 
@@ -323,9 +323,9 @@ func Test_ActivityStateMachine_PanicInvalidStateTransition(t *testing.T) {
 func Test_ChildWorkflowStateMachine_Basic(t *testing.T) {
 	t.Parallel()
 	workflowID := "test-child-workflow-1"
-	attributes := &commandpb.StartChildWorkflowExecutionCommandAttributes{
+	attributes := commandpb.StartChildWorkflowExecutionCommandAttributes_builder{
 		WorkflowId: workflowID,
-	}
+	}.Build()
 	h := newCommandsHelper()
 
 	// start child workflow
@@ -362,9 +362,9 @@ func Test_ChildWorkflowStateMachine_CancelSucceed(t *testing.T) {
 	runID := ""
 	cancellationID := ""
 	initiatedEventID := int64(28)
-	attributes := &commandpb.StartChildWorkflowExecutionCommandAttributes{
+	attributes := commandpb.StartChildWorkflowExecutionCommandAttributes_builder{
 		WorkflowId: workflowID,
-	}
+	}.Build()
 	h := newCommandsHelper()
 
 	// start child workflow
@@ -405,9 +405,9 @@ func Test_ChildWorkflowStateMachine_InvalidStates(t *testing.T) {
 	namespace := "test-namespace"
 	workflowID := "test-workflow-id"
 	runID := ""
-	attributes := &commandpb.StartChildWorkflowExecutionCommandAttributes{
+	attributes := commandpb.StartChildWorkflowExecutionCommandAttributes_builder{
 		WorkflowId: workflowID,
-	}
+	}.Build()
 	cancellationID := ""
 	initiatedEventID := int64(28)
 	h := newCommandsHelper()
@@ -482,9 +482,9 @@ func Test_ChildWorkflow_UnusualCancelationOrdering(t *testing.T) {
 	namespace := "test-namespace"
 	workflowID := "test-workflow-id"
 	runID := ""
-	attributes := &commandpb.StartChildWorkflowExecutionCommandAttributes{
+	attributes := commandpb.StartChildWorkflowExecutionCommandAttributes_builder{
 		WorkflowId: workflowID,
-	}
+	}.Build()
 	cancellationID := ""
 	initiatedEventID := int64(28)
 	h := newCommandsHelper()
@@ -516,9 +516,9 @@ func Test_ChildWorkflowStateMachine_CancelFailed(t *testing.T) {
 	namespace := "test-namespace"
 	workflowID := "test-workflow-id"
 	runID := ""
-	attributes := &commandpb.StartChildWorkflowExecutionCommandAttributes{
+	attributes := commandpb.StartChildWorkflowExecutionCommandAttributes_builder{
 		WorkflowId: workflowID,
-	}
+	}.Build()
 	cancellationID := ""
 	initiatedEventID := int64(28)
 	h := newCommandsHelper()
@@ -612,13 +612,13 @@ func Test_CancelExternalWorkflowStateMachine_Succeed(t *testing.T) {
 	require.Equal(t, enumspb.COMMAND_TYPE_REQUEST_CANCEL_EXTERNAL_WORKFLOW_EXECUTION, commands[0].GetCommandType())
 	require.Equal(
 		t,
-		&commandpb.RequestCancelExternalWorkflowExecutionCommandAttributes{
+		commandpb.RequestCancelExternalWorkflowExecutionCommandAttributes_builder{
 			Namespace:         namespace,
 			WorkflowId:        workflowID,
 			RunId:             runID,
 			Control:           cancellationID,
 			ChildWorkflowOnly: false,
-		},
+		}.Build(),
 		commands[0].GetRequestCancelExternalWorkflowExecutionCommandAttributes(),
 	)
 
@@ -658,13 +658,13 @@ func Test_CancelExternalWorkflowStateMachine_Failed(t *testing.T) {
 	require.Equal(t, enumspb.COMMAND_TYPE_REQUEST_CANCEL_EXTERNAL_WORKFLOW_EXECUTION, commands[0].GetCommandType())
 	require.Equal(
 		t,
-		&commandpb.RequestCancelExternalWorkflowExecutionCommandAttributes{
+		commandpb.RequestCancelExternalWorkflowExecutionCommandAttributes_builder{
 			Namespace:         namespace,
 			WorkflowId:        workflowID,
 			RunId:             runID,
 			Control:           cancellationID,
 			ChildWorkflowOnly: false,
-		},
+		}.Build(),
 		commands[0].GetRequestCancelExternalWorkflowExecutionCommandAttributes(),
 	)
 

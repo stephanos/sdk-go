@@ -10,6 +10,7 @@ import (
 	enumspb "go.temporal.io/api/enums/v1"
 	taskqueuepb "go.temporal.io/api/taskqueue/v1"
 	"go.temporal.io/api/workflowservice/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestEagerActivityDisabled(t *testing.T) {
@@ -21,7 +22,7 @@ func TestEagerActivityDisabled(t *testing.T) {
 	var req workflowservice.RespondWorkflowTaskCompletedRequest
 	addScheduleTaskCommand(&req, "task-queue1")
 	require.Empty(t, exec.applyToRequest(&req))
-	require.False(t, req.Commands[0].GetScheduleActivityTaskCommandAttributes().RequestEagerExecution)
+	require.False(t, req.GetCommands()[0].GetScheduleActivityTaskCommandAttributes().GetRequestEagerExecution())
 }
 
 func TestEagerActivityNoActivityWorker(t *testing.T) {
@@ -31,7 +32,7 @@ func TestEagerActivityNoActivityWorker(t *testing.T) {
 	var req workflowservice.RespondWorkflowTaskCompletedRequest
 	addScheduleTaskCommand(&req, "task-queue1")
 	require.Empty(t, exec.applyToRequest(&req))
-	require.False(t, req.Commands[0].GetScheduleActivityTaskCommandAttributes().RequestEagerExecution)
+	require.False(t, req.GetCommands()[0].GetScheduleActivityTaskCommandAttributes().GetRequestEagerExecution())
 }
 
 func TestEagerActivityWrongTaskQueue(t *testing.T) {
@@ -54,8 +55,8 @@ func TestEagerActivityWrongTaskQueue(t *testing.T) {
 	addScheduleTaskCommand(&req, "task-queue1")
 	addScheduleTaskCommand(&req, "task-queue2")
 	require.Equal(t, 1, len(exec.applyToRequest(&req)))
-	require.True(t, req.Commands[0].GetScheduleActivityTaskCommandAttributes().RequestEagerExecution)
-	require.False(t, req.Commands[1].GetScheduleActivityTaskCommandAttributes().RequestEagerExecution)
+	require.True(t, req.GetCommands()[0].GetScheduleActivityTaskCommandAttributes().GetRequestEagerExecution())
+	require.False(t, req.GetCommands()[1].GetScheduleActivityTaskCommandAttributes().GetRequestEagerExecution())
 }
 
 func TestEagerActivityMaxPerTask(t *testing.T) {
@@ -80,7 +81,7 @@ func TestEagerActivityMaxPerTask(t *testing.T) {
 	}
 	require.Equal(t, 3, len(exec.applyToRequest(&req)))
 	for i := 0; i < 8; i++ {
-		require.Equal(t, i < 3, req.Commands[i].GetScheduleActivityTaskCommandAttributes().RequestEagerExecution)
+		require.Equal(t, i < 3, req.GetCommands()[i].GetScheduleActivityTaskCommandAttributes().GetRequestEagerExecution())
 	}
 }
 
@@ -110,7 +111,7 @@ func TestEagerActivityCounts(t *testing.T) {
 	addScheduleTaskCommand(req, "task-queue2")
 	addScheduleTaskCommand(req, "task-queue2")
 	addScheduleTaskCommand(req, "task-queue1")
-	addScheduleTaskCommand(req, "task-queue1").RequestEagerExecution = false
+	addScheduleTaskCommand(req, "task-queue1").SetRequestEagerExecution(false)
 	addScheduleTaskCommand(req, "task-queue1")
 	addScheduleTaskCommand(req, "task-queue1")
 	addScheduleTaskCommand(req, "task-queue1")
@@ -118,13 +119,13 @@ func TestEagerActivityCounts(t *testing.T) {
 	// Apply to request and confirm only the proper 3 remain as true
 	reservedPermits := exec.applyToRequest(req)
 	require.Equal(t, 3, len(reservedPermits))
-	require.False(t, req.Commands[0].GetScheduleActivityTaskCommandAttributes().RequestEagerExecution)
-	require.False(t, req.Commands[1].GetScheduleActivityTaskCommandAttributes().RequestEagerExecution)
-	require.True(t, req.Commands[2].GetScheduleActivityTaskCommandAttributes().RequestEagerExecution)
-	require.False(t, req.Commands[3].GetScheduleActivityTaskCommandAttributes().RequestEagerExecution)
-	require.True(t, req.Commands[4].GetScheduleActivityTaskCommandAttributes().RequestEagerExecution)
-	require.True(t, req.Commands[5].GetScheduleActivityTaskCommandAttributes().RequestEagerExecution)
-	require.False(t, req.Commands[6].GetScheduleActivityTaskCommandAttributes().RequestEagerExecution)
+	require.False(t, req.GetCommands()[0].GetScheduleActivityTaskCommandAttributes().GetRequestEagerExecution())
+	require.False(t, req.GetCommands()[1].GetScheduleActivityTaskCommandAttributes().GetRequestEagerExecution())
+	require.True(t, req.GetCommands()[2].GetScheduleActivityTaskCommandAttributes().GetRequestEagerExecution())
+	require.False(t, req.GetCommands()[3].GetScheduleActivityTaskCommandAttributes().GetRequestEagerExecution())
+	require.True(t, req.GetCommands()[4].GetScheduleActivityTaskCommandAttributes().GetRequestEagerExecution())
+	require.True(t, req.GetCommands()[5].GetScheduleActivityTaskCommandAttributes().GetRequestEagerExecution())
+	require.False(t, req.GetCommands()[6].GetScheduleActivityTaskCommandAttributes().GetRequestEagerExecution())
 
 	// Confirm counts
 	tss := activityWorker.worker.slotSupplier
@@ -133,12 +134,12 @@ func TestEagerActivityCounts(t *testing.T) {
 	require.Equal(t, 0, len(tss.usedSlots))
 
 	// Pretend server only returned 2 eager activities
-	resp := &workflowservice.RespondWorkflowTaskCompletedResponse{
+	resp := workflowservice.RespondWorkflowTaskCompletedResponse_builder{
 		ActivityTasks: []*workflowservice.PollActivityTaskQueueResponse{
-			{ActivityId: "activity1"},
-			{ActivityId: "activity2"},
+			workflowservice.PollActivityTaskQueueResponse_builder{ActivityId: "activity1"}.Build(),
+			workflowservice.PollActivityTaskQueueResponse_builder{ActivityId: "activity2"}.Build(),
 		},
-	}
+	}.Build()
 	exec.handleResponse(resp, reservedPermits)
 
 	// Wait a bit until both tasks running
@@ -156,8 +157,8 @@ func TestEagerActivityCounts(t *testing.T) {
 	addScheduleTaskCommand(req, "task-queue1")
 	addScheduleTaskCommand(req, "task-queue1")
 	require.Equal(t, 1, len(exec.applyToRequest(req)))
-	require.True(t, req.Commands[0].GetScheduleActivityTaskCommandAttributes().RequestEagerExecution)
-	require.False(t, req.Commands[1].GetScheduleActivityTaskCommandAttributes().RequestEagerExecution)
+	require.True(t, req.GetCommands()[0].GetScheduleActivityTaskCommandAttributes().GetRequestEagerExecution())
+	require.False(t, req.GetCommands()[1].GetScheduleActivityTaskCommandAttributes().GetRequestEagerExecution())
 	require.Equal(t, int32(3), tss.issuedSlotsAtomic.Load())
 
 	// Resolve that saying none came back
@@ -176,7 +177,7 @@ func TestEagerActivityCounts(t *testing.T) {
 	req = &workflowservice.RespondWorkflowTaskCompletedRequest{}
 	addScheduleTaskCommand(req, "task-queue1")
 	require.Empty(t, exec.applyToRequest(req))
-	require.False(t, req.Commands[0].GetScheduleActivityTaskCommandAttributes().RequestEagerExecution)
+	require.False(t, req.GetCommands()[0].GetScheduleActivityTaskCommandAttributes().GetRequestEagerExecution())
 	require.Equal(t, int32(5), tss.issuedSlotsAtomic.Load())
 
 	// Complete eager two and confirm those are released. The three we took by hand from the
@@ -192,16 +193,14 @@ func addScheduleTaskCommand(
 	req *workflowservice.RespondWorkflowTaskCompletedRequest,
 	taskQueue string,
 ) *commandpb.ScheduleActivityTaskCommandAttributes {
-	ret := &commandpb.ScheduleActivityTaskCommandAttributes{
+	ret := commandpb.ScheduleActivityTaskCommandAttributes_builder{
 		RequestEagerExecution: true,
-		TaskQueue:             &taskqueuepb.TaskQueue{Name: taskQueue},
-	}
-	req.Commands = append(req.Commands, &commandpb.Command{
-		CommandType: enumspb.COMMAND_TYPE_SCHEDULE_ACTIVITY_TASK,
-		Attributes: &commandpb.Command_ScheduleActivityTaskCommandAttributes{
-			ScheduleActivityTaskCommandAttributes: ret,
-		},
-	})
+		TaskQueue:             taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build(),
+	}.Build()
+	req.SetCommands(append(req.GetCommands(), commandpb.Command_builder{
+		CommandType:                           enumspb.COMMAND_TYPE_SCHEDULE_ACTIVITY_TASK,
+		ScheduleActivityTaskCommandAttributes: proto.ValueOrDefault(ret),
+	}.Build()))
 	return ret
 }
 

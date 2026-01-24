@@ -33,9 +33,9 @@ func (wth sampleWorkflowTaskHandler) ProcessWorkflowTask(
 	_ *workflowExecutionContextImpl,
 	_ workflowTaskHeartbeatFunc,
 ) (*workflowTaskCompletion, error) {
-	return &workflowTaskCompletion{rawRequest: &workflowservice.RespondWorkflowTaskCompletedRequest{
-		TaskToken: workflowTask.task.TaskToken,
-	}}, nil
+	return &workflowTaskCompletion{rawRequest: workflowservice.RespondWorkflowTaskCompletedRequest_builder{
+		TaskToken: workflowTask.task.GetTaskToken(),
+	}.Build()}, nil
 }
 
 func (wth sampleWorkflowTaskHandler) GetOrCreateWorkflowContext(
@@ -68,19 +68,19 @@ func newSampleActivityTaskHandler() *sampleActivityTaskHandler {
 
 func (ath sampleActivityTaskHandler) Execute(_ string, task *workflowservice.PollActivityTaskQueueResponse) (interface{}, error) {
 	activityImplementation := &greeterActivity{}
-	result, err := activityImplementation.Execute(context.Background(), task.Input)
+	result, err := activityImplementation.Execute(context.Background(), task.GetInput())
 	fc := GetDefaultFailureConverter()
 	if err != nil {
 		failure := fc.ErrorToFailure(NewApplicationError(err.Error(), getErrType(err), false, nil))
-		return &workflowservice.RespondActivityTaskFailedRequest{
-			TaskToken: task.TaskToken,
+		return workflowservice.RespondActivityTaskFailedRequest_builder{
+			TaskToken: task.GetTaskToken(),
 			Failure:   failure,
-		}, nil
+		}.Build(), nil
 	}
-	return &workflowservice.RespondActivityTaskCompletedRequest{
-		TaskToken: task.TaskToken,
+	return workflowservice.RespondActivityTaskCompletedRequest_builder{
+		TaskToken: task.GetTaskToken(),
 		Result:    result,
-	}, nil
+	}.Build(), nil
 }
 
 // Test suite.
@@ -147,27 +147,27 @@ func (s *PollLayerInterfacesTestSuite) TestGetNextCommands() {
 	// Schedule an activity and see if we complete workflow.
 	taskQueue := "tq1"
 	testEvents := []*historypb.HistoryEvent{
-		createTestEventWorkflowExecutionStarted(1, &historypb.WorkflowExecutionStartedEventAttributes{TaskQueue: &taskqueuepb.TaskQueue{Name: taskQueue}}),
-		createTestEventWorkflowTaskScheduled(2, &historypb.WorkflowTaskScheduledEventAttributes{TaskQueue: &taskqueuepb.TaskQueue{Name: taskQueue}}),
+		createTestEventWorkflowExecutionStarted(1, historypb.WorkflowExecutionStartedEventAttributes_builder{TaskQueue: taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build()}.Build()),
+		createTestEventWorkflowTaskScheduled(2, historypb.WorkflowTaskScheduledEventAttributes_builder{TaskQueue: taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build()}.Build()),
 		createTestEventWorkflowTaskStarted(3),
-		{
+		historypb.HistoryEvent_builder{
 			EventId:   4,
 			EventType: enumspb.EVENT_TYPE_WORKFLOW_TASK_TIMED_OUT,
-		},
-		{
+		}.Build(),
+		historypb.HistoryEvent_builder{
 			EventId:   5,
 			EventType: enumspb.EVENT_TYPE_WORKFLOW_EXECUTION_SIGNALED,
-		},
-		createTestEventWorkflowTaskScheduled(6, &historypb.WorkflowTaskScheduledEventAttributes{TaskQueue: &taskqueuepb.TaskQueue{Name: taskQueue}}),
+		}.Build(),
+		createTestEventWorkflowTaskScheduled(6, historypb.WorkflowTaskScheduledEventAttributes_builder{TaskQueue: taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build()}.Build()),
 		createTestEventWorkflowTaskStarted(7),
 	}
 	task := createWorkflowTaskWithQueries(testEvents[0:3], 0, "HelloWorld_Workflow", nil, false)
 
 	historyIterator := &historyIteratorImpl{
 		iteratorFunc: func(nextToken []byte) (*historypb.History, []byte, error) {
-			return &historypb.History{
+			return historypb.History_builder{
 				Events: testEvents[3:],
-			}, nil, nil
+			}.Build(), nil, nil
 		},
 		nextPageToken: []byte("test"),
 	}
@@ -189,30 +189,30 @@ func (s *PollLayerInterfacesTestSuite) TestGetNextCommandsSdkFlags() {
 	// Schedule an activity and see if we complete workflow.
 	taskQueue := "tq1"
 	testEvents := []*historypb.HistoryEvent{
-		createTestEventWorkflowExecutionStarted(1, &historypb.WorkflowExecutionStartedEventAttributes{TaskQueue: &taskqueuepb.TaskQueue{Name: taskQueue}}),
-		createTestEventWorkflowTaskScheduled(2, &historypb.WorkflowTaskScheduledEventAttributes{TaskQueue: &taskqueuepb.TaskQueue{Name: taskQueue}}),
+		createTestEventWorkflowExecutionStarted(1, historypb.WorkflowExecutionStartedEventAttributes_builder{TaskQueue: taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build()}.Build()),
+		createTestEventWorkflowTaskScheduled(2, historypb.WorkflowTaskScheduledEventAttributes_builder{TaskQueue: taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build()}.Build()),
 		createTestEventWorkflowTaskStarted(3),
-		createTestEventWorkflowTaskCompleted(4, &historypb.WorkflowTaskCompletedEventAttributes{
+		createTestEventWorkflowTaskCompleted(4, historypb.WorkflowTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 2,
 			StartedEventId:   3,
-			SdkMetadata: &sdk.WorkflowTaskCompletedMetadata{
+			SdkMetadata: sdk.WorkflowTaskCompletedMetadata_builder{
 				LangUsedFlags: []uint32{SDKFlagLimitChangeVersionSASize},
 				SdkName:       SDKName,
 				SdkVersion:    "1.0",
-			},
-		}),
+			}.Build(),
+		}.Build()),
 		createTestEventVersionMarker(5, 4, "test-id", 1),
 		createTestUpsertWorkflowSearchAttributesForChangeVersion(6, 4, "test-id", 1),
-		createTestEventWorkflowTaskScheduled(7, &historypb.WorkflowTaskScheduledEventAttributes{TaskQueue: &taskqueuepb.TaskQueue{Name: taskQueue}}),
+		createTestEventWorkflowTaskScheduled(7, historypb.WorkflowTaskScheduledEventAttributes_builder{TaskQueue: taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build()}.Build()),
 		createTestEventWorkflowTaskStarted(8),
 	}
 	task := createWorkflowTaskWithQueries(testEvents[0:3], 0, "HelloWorld_Workflow", nil, false)
 
 	historyIterator := &historyIteratorImpl{
 		iteratorFunc: func(nextToken []byte) (*historypb.History, []byte, error) {
-			return &historypb.History{
+			return historypb.History_builder{
 				Events: testEvents[3:],
-			}, nil, nil
+			}.Build(), nil, nil
 		},
 		nextPageToken: []byte("test"),
 	}
@@ -249,39 +249,37 @@ func (s *PollLayerInterfacesTestSuite) TestMessageCommands() {
 	// Schedule an activity and see if we complete workflow.
 	taskQueue := "tq1"
 	testEvents := []*historypb.HistoryEvent{
-		createTestEventWorkflowExecutionStarted(1, &historypb.WorkflowExecutionStartedEventAttributes{TaskQueue: &taskqueuepb.TaskQueue{Name: taskQueue}}),
-		createTestEventWorkflowTaskScheduled(2, &historypb.WorkflowTaskScheduledEventAttributes{TaskQueue: &taskqueuepb.TaskQueue{Name: taskQueue}}),
+		createTestEventWorkflowExecutionStarted(1, historypb.WorkflowExecutionStartedEventAttributes_builder{TaskQueue: taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build()}.Build()),
+		createTestEventWorkflowTaskScheduled(2, historypb.WorkflowTaskScheduledEventAttributes_builder{TaskQueue: taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build()}.Build()),
 		createTestEventWorkflowTaskStarted(3),
-		{
+		historypb.HistoryEvent_builder{
 			EventId:   4,
 			EventType: enumspb.EVENT_TYPE_WORKFLOW_TASK_TIMED_OUT,
-		},
-		createTestEventWorkflowTaskScheduled(5, &historypb.WorkflowTaskScheduledEventAttributes{TaskQueue: &taskqueuepb.TaskQueue{Name: taskQueue}}),
+		}.Build(),
+		createTestEventWorkflowTaskScheduled(5, historypb.WorkflowTaskScheduledEventAttributes_builder{TaskQueue: taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build()}.Build()),
 		createTestEventWorkflowTaskStarted(6),
-		createTestEventWorkflowTaskCompleted(7, &historypb.WorkflowTaskCompletedEventAttributes{
+		createTestEventWorkflowTaskCompleted(7, historypb.WorkflowTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 5,
 			StartedEventId:   6,
-		}),
-		{
+		}.Build()),
+		historypb.HistoryEvent_builder{
 			EventId:   8,
 			EventType: enumspb.EVENT_TYPE_WORKFLOW_EXECUTION_UPDATE_ACCEPTED,
-			Attributes: &historypb.HistoryEvent_WorkflowExecutionUpdateAcceptedEventAttributes{
-				WorkflowExecutionUpdateAcceptedEventAttributes: &historypb.WorkflowExecutionUpdateAcceptedEventAttributes{
-					ProtocolInstanceId: "test",
-					AcceptedRequest:    &updatepb.Request{},
-				},
-			},
-		},
-		createTestEventWorkflowTaskScheduled(9, &historypb.WorkflowTaskScheduledEventAttributes{TaskQueue: &taskqueuepb.TaskQueue{Name: taskQueue}}),
+			WorkflowExecutionUpdateAcceptedEventAttributes: historypb.WorkflowExecutionUpdateAcceptedEventAttributes_builder{
+				ProtocolInstanceId: "test",
+				AcceptedRequest:    &updatepb.Request{},
+			}.Build(),
+		}.Build(),
+		createTestEventWorkflowTaskScheduled(9, historypb.WorkflowTaskScheduledEventAttributes_builder{TaskQueue: taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build()}.Build()),
 		createTestEventWorkflowTaskStarted(10),
 	}
 	task := createWorkflowTaskWithQueries(testEvents[0:3], 0, "HelloWorld_Workflow", nil, false)
 
 	historyIterator := &historyIteratorImpl{
 		iteratorFunc: func(nextToken []byte) (*historypb.History, []byte, error) {
-			return &historypb.History{
+			return historypb.History_builder{
 				Events: testEvents[3:],
-			}, nil, nil
+			}.Build(), nil, nil
 		},
 		nextPageToken: []byte("test"),
 	}
@@ -313,24 +311,24 @@ func (s *PollLayerInterfacesTestSuite) TestEmptyPages() {
 	// Schedule an activity and see if we complete workflow.
 	taskQueue := "tq1"
 	testEvents := []*historypb.HistoryEvent{
-		createTestEventWorkflowExecutionStarted(1, &historypb.WorkflowExecutionStartedEventAttributes{TaskQueue: &taskqueuepb.TaskQueue{Name: taskQueue}}),
-		createTestEventWorkflowTaskScheduled(2, &historypb.WorkflowTaskScheduledEventAttributes{TaskQueue: &taskqueuepb.TaskQueue{Name: taskQueue}}),
+		createTestEventWorkflowExecutionStarted(1, historypb.WorkflowExecutionStartedEventAttributes_builder{TaskQueue: taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build()}.Build()),
+		createTestEventWorkflowTaskScheduled(2, historypb.WorkflowTaskScheduledEventAttributes_builder{TaskQueue: taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build()}.Build()),
 		createTestEventWorkflowTaskStarted(3),
-		{
+		historypb.HistoryEvent_builder{
 			EventId:   4,
 			EventType: enumspb.EVENT_TYPE_WORKFLOW_TASK_TIMED_OUT,
-		},
-		createTestEventWorkflowTaskScheduled(5, &historypb.WorkflowTaskScheduledEventAttributes{TaskQueue: &taskqueuepb.TaskQueue{Name: taskQueue}}),
+		}.Build(),
+		createTestEventWorkflowTaskScheduled(5, historypb.WorkflowTaskScheduledEventAttributes_builder{TaskQueue: taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build()}.Build()),
 		createTestEventWorkflowTaskStarted(6),
-		createTestEventWorkflowTaskCompleted(7, &historypb.WorkflowTaskCompletedEventAttributes{
+		createTestEventWorkflowTaskCompleted(7, historypb.WorkflowTaskCompletedEventAttributes_builder{
 			ScheduledEventId: 5,
 			StartedEventId:   6,
-		}),
-		createTestEventWorkflowExecutionUpdateAccepted(8, &historypb.WorkflowExecutionUpdateAcceptedEventAttributes{
+		}.Build()),
+		createTestEventWorkflowExecutionUpdateAccepted(8, historypb.WorkflowExecutionUpdateAcceptedEventAttributes_builder{
 			ProtocolInstanceId: "test",
 			AcceptedRequest:    &updatepb.Request{},
-		}),
-		createTestEventWorkflowTaskScheduled(9, &historypb.WorkflowTaskScheduledEventAttributes{TaskQueue: &taskqueuepb.TaskQueue{Name: taskQueue}}),
+		}.Build()),
+		createTestEventWorkflowTaskScheduled(9, historypb.WorkflowTaskScheduledEventAttributes_builder{TaskQueue: taskqueuepb.TaskQueue_builder{Name: taskQueue}.Build()}.Build()),
 		createTestEventWorkflowTaskStarted(10),
 	}
 	task := createWorkflowTaskWithQueries(testEvents[0:2], 0, "HelloWorld_Workflow", nil, false)
@@ -341,15 +339,15 @@ func (s *PollLayerInterfacesTestSuite) TestEmptyPages() {
 		GetNextPageImpl: func() (*historypb.History, error) {
 			if returnEmptyPage {
 				returnEmptyPage = false
-				return &historypb.History{
+				return historypb.History_builder{
 					Events: []*historypb.HistoryEvent{},
-				}, nil
+				}.Build(), nil
 			}
 			returnEmptyPage = true
 			eventID += 1
-			return &historypb.History{
+			return historypb.History_builder{
 				Events: testEvents[eventID-1 : eventID],
-			}, nil
+			}.Build(), nil
 		},
 		HasNextPageImpl: func() bool {
 			return !(eventID >= len(testEvents) && returnEmptyPage == false)
@@ -367,35 +365,35 @@ func (s *PollLayerInterfacesTestSuite) TestEmptyPages() {
 	expectedResults := []result{
 		{
 			events: []*historypb.HistoryEvent{
-				{
+				historypb.HistoryEvent_builder{
 					EventId:   1,
 					EventType: enumspb.EVENT_TYPE_WORKFLOW_EXECUTION_STARTED,
-				},
-				{
+				}.Build(),
+				historypb.HistoryEvent_builder{
 					EventId:   6,
 					EventType: enumspb.EVENT_TYPE_WORKFLOW_TASK_STARTED,
-				},
+				}.Build(),
 			},
 			messages: []*protocol.Message{
-				{
+				protocol.Message_builder{
 					ProtocolInstanceId: "test",
-				},
+				}.Build(),
 			},
 		},
 		{
 			events: []*historypb.HistoryEvent{
-				{
+				historypb.HistoryEvent_builder{
 					EventId:   7,
 					EventType: enumspb.EVENT_TYPE_WORKFLOW_TASK_COMPLETED,
-				},
-				{
+				}.Build(),
+				historypb.HistoryEvent_builder{
 					EventId:   8,
 					EventType: enumspb.EVENT_TYPE_WORKFLOW_EXECUTION_UPDATE_ACCEPTED,
-				},
-				{
+				}.Build(),
+				historypb.HistoryEvent_builder{
 					EventId:   10,
 					EventType: enumspb.EVENT_TYPE_WORKFLOW_TASK_STARTED,
-				},
+				}.Build(),
 			},
 			messages: []*protocol.Message{},
 		},
@@ -410,13 +408,13 @@ func (s *PollLayerInterfacesTestSuite) TestEmptyPages() {
 		s.NoError(err)
 		s.Equal(len(expected.events), len(nexTask.events))
 		for i, event := range nexTask.events {
-			s.Equal(expected.events[i].EventId, event.EventId)
-			s.Equal(expected.events[i].EventType, event.EventType)
+			s.Equal(expected.events[i].GetEventId(), event.GetEventId())
+			s.Equal(expected.events[i].GetEventType(), event.GetEventType())
 		}
 
 		s.Equal(len(expected.messages), len(nexTask.acceptedMsgs))
 		for i, msg := range nexTask.acceptedMsgs {
-			s.Equal(expected.messages[i].ProtocolInstanceId, msg.ProtocolInstanceId)
+			s.Equal(expected.messages[i].GetProtocolInstanceId(), msg.GetProtocolInstanceId())
 		}
 	}
 }

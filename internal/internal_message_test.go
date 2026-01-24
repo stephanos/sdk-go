@@ -5,14 +5,15 @@ import (
 
 	"github.com/stretchr/testify/require"
 	protocolpb "go.temporal.io/api/protocol/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestEventMessageIndex(t *testing.T) {
 	newMsg := func(id string, eventID int64) *protocolpb.Message {
-		return &protocolpb.Message{
-			Id:           id,
-			SequencingId: &protocolpb.Message_EventId{EventId: eventID},
-		}
+		return protocolpb.Message_builder{
+			Id:      id,
+			EventId: proto.Int64(eventID),
+		}.Build()
 	}
 	messages := []*protocolpb.Message{
 		newMsg("00", 0),
@@ -32,7 +33,7 @@ func TestEventMessageIndex(t *testing.T) {
 	require.Len(t, batch, 4)
 	for i := 0; i < len(batch)-1; i++ {
 		if batch[i].GetEventId() == batch[i+1].GetEventId() {
-			require.Less(t, batch[i].Id, batch[i+1].Id)
+			require.Less(t, batch[i].GetId(), batch[i+1].GetId())
 		}
 	}
 
@@ -46,7 +47,7 @@ func TestEventMessageIndex(t *testing.T) {
 	require.Len(t, batch, 3)
 	for i := 0; i < len(batch)-1; i++ {
 		if batch[i].GetEventId() == batch[i+1].GetEventId() {
-			require.Less(t, batch[i].Id, batch[i+1].Id)
+			require.Less(t, batch[i].GetId(), batch[i+1].GetId())
 		}
 	}
 

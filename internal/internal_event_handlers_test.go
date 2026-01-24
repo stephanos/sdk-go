@@ -120,9 +120,9 @@ func Test_ValidateAndSerializeSearchAttributes(t *testing.T) {
 	}
 	searchAttr, err := validateAndSerializeSearchAttributes(attr)
 	require.NoError(t, err)
-	require.Equal(t, 1, len(searchAttr.IndexedFields))
+	require.Equal(t, 1, len(searchAttr.GetIndexedFields()))
 	var resp int
-	_ = converter.GetDefaultDataConverter().FromPayload(searchAttr.IndexedFields["key"], &resp)
+	_ = converter.GetDefaultDataConverter().FromPayload(searchAttr.GetIndexedFields()["key"], &resp)
 	require.Equal(t, 1, resp)
 }
 
@@ -173,31 +173,31 @@ func Test_MergeSearchAttributes(t *testing.T) {
 		},
 		{
 			name:     "currentIsEmpty",
-			current:  &commonpb.SearchAttributes{IndexedFields: make(map[string]*commonpb.Payload)},
+			current:  commonpb.SearchAttributes_builder{IndexedFields: make(map[string]*commonpb.Payload)}.Build(),
 			upsert:   &commonpb.SearchAttributes{},
 			expected: nil,
 		},
 		{
 			name: "normalMerge",
-			current: &commonpb.SearchAttributes{
+			current: commonpb.SearchAttributes_builder{
 				IndexedFields: map[string]*commonpb.Payload{
 					"CustomIntField":     encodeString(`1`),
 					"CustomKeywordField": encodeString(`keyword`),
 				},
-			},
-			upsert: &commonpb.SearchAttributes{
+			}.Build(),
+			upsert: commonpb.SearchAttributes_builder{
 				IndexedFields: map[string]*commonpb.Payload{
 					"CustomIntField":  encodeString(`2`),
 					"CustomBoolField": encodeString(`true`),
 				},
-			},
-			expected: &commonpb.SearchAttributes{
+			}.Build(),
+			expected: commonpb.SearchAttributes_builder{
 				IndexedFields: map[string]*commonpb.Payload{
 					"CustomIntField":     encodeString(`2`),
 					"CustomKeywordField": encodeString(`keyword`),
 					"CustomBoolField":    encodeString(`true`),
 				},
-			},
+			}.Build(),
 		},
 	}
 
@@ -231,9 +231,9 @@ func Test_ValidateAndSerializeMemo(t *testing.T) {
 	}
 	memo, err := validateAndSerializeMemo(attr, nil)
 	require.NoError(t, err)
-	require.Equal(t, 1, len(memo.Fields))
+	require.Equal(t, 1, len(memo.GetFields()))
 	var resp int
-	_ = converter.GetDefaultDataConverter().FromPayload(memo.Fields["key"], &resp)
+	_ = converter.GetDefaultDataConverter().FromPayload(memo.GetFields()["key"], &resp)
 	require.Equal(t, 1, resp)
 }
 
@@ -278,31 +278,31 @@ func Test_MergeMemo(t *testing.T) {
 		},
 		{
 			name:     "currentIsEmpty",
-			current:  &commonpb.Memo{Fields: make(map[string]*commonpb.Payload)},
+			current:  commonpb.Memo_builder{Fields: make(map[string]*commonpb.Payload)}.Build(),
 			upsert:   &commonpb.Memo{},
 			expected: nil,
 		},
 		{
 			name: "normalMerge",
-			current: &commonpb.Memo{
+			current: commonpb.Memo_builder{
 				Fields: map[string]*commonpb.Payload{
 					"CustomIntField":     encodeString(`1`),
 					"CustomKeywordField": encodeString(`keyword`),
 				},
-			},
-			upsert: &commonpb.Memo{
+			}.Build(),
+			upsert: commonpb.Memo_builder{
 				Fields: map[string]*commonpb.Payload{
 					"CustomIntField":  encodeString(`2`),
 					"CustomBoolField": encodeString(`true`),
 				},
-			},
-			expected: &commonpb.Memo{
+			}.Build(),
+			expected: commonpb.Memo_builder{
 				Fields: map[string]*commonpb.Payload{
 					"CustomIntField":     encodeString(`2`),
 					"CustomKeywordField": encodeString(`keyword`),
 					"CustomBoolField":    encodeString(`true`),
 				},
-			},
+			}.Build(),
 		},
 	}
 
@@ -426,36 +426,36 @@ func TestUpdateEvents(t *testing.T) {
 		},
 	}
 
-	meta := &updatepb.Meta{
+	meta := updatepb.Meta_builder{
 		UpdateId: t.Name() + "-id",
 		Identity: t.Name() + "-identity",
-	}
-	input := &updatepb.Input{
-		Header: &commonpb.Header{Fields: map[string]*commonpb.Payload{"a": mustPayload("b")}},
+	}.Build()
+	input := updatepb.Input_builder{
+		Header: commonpb.Header_builder{Fields: map[string]*commonpb.Payload{"a": mustPayload("b")}}.Build(),
 		Name:   t.Name(),
-		Args:   &commonpb.Payloads{Payloads: []*commonpb.Payload{mustPayload("arg0")}},
-	}
+		Args:   commonpb.Payloads_builder{Payloads: []*commonpb.Payload{mustPayload("arg0")}}.Build(),
+	}.Build()
 
 	body := &anypb.Any{}
-	require.NoError(t, body.MarshalFrom(&updatepb.Request{Meta: meta, Input: input}))
+	require.NoError(t, body.MarshalFrom(updatepb.Request_builder{Meta: meta, Input: input}.Build()))
 
-	err := weh.ProcessMessage(&protocolpb.Message{
+	err := weh.ProcessMessage(protocolpb.Message_builder{
 		ProtocolInstanceId: t.Name(),
 		Body:               body,
-	}, false, false)
+	}.Build(), false, false)
 	require.NoError(t, err)
 
-	require.Equal(t, input.Name, gotName)
+	require.Equal(t, input.GetName(), gotName)
 	require.Equal(t, t.Name()+"-id", gotID)
-	require.True(t, proto.Equal(input.Header, gotHeader))
-	require.True(t, proto.Equal(input.Args, gotArgs))
+	require.True(t, proto.Equal(input.GetHeader(), gotHeader))
+	require.True(t, proto.Equal(input.GetArgs(), gotArgs))
 
 	// UPDATE_ACCEPTED and UPDATE_COMPLETED are noops for the worker
 	for _, evtype := range [...]enumspb.EventType{
 		enumspb.EVENT_TYPE_WORKFLOW_EXECUTION_UPDATE_ACCEPTED,
 		enumspb.EVENT_TYPE_WORKFLOW_EXECUTION_UPDATE_COMPLETED,
 	} {
-		require.NoError(t, weh.ProcessEvent(&historypb.HistoryEvent{EventType: evtype}, false, false))
+		require.NoError(t, weh.ProcessEvent(historypb.HistoryEvent_builder{EventType: evtype}.Build(), false, false))
 	}
 }
 
@@ -491,34 +491,34 @@ func TestUpdateEventsPanic(t *testing.T) {
 		},
 	}
 
-	meta := &updatepb.Meta{
+	meta := updatepb.Meta_builder{
 		UpdateId: t.Name() + "-id",
 		Identity: t.Name() + "-identity",
-	}
-	input := &updatepb.Input{
-		Header: &commonpb.Header{Fields: map[string]*commonpb.Payload{"a": mustPayload("b")}},
+	}.Build()
+	input := updatepb.Input_builder{
+		Header: commonpb.Header_builder{Fields: map[string]*commonpb.Payload{"a": mustPayload("b")}}.Build(),
 		Name:   t.Name(),
-		Args:   &commonpb.Payloads{Payloads: []*commonpb.Payload{mustPayload("arg0")}},
-	}
+		Args:   commonpb.Payloads_builder{Payloads: []*commonpb.Payload{mustPayload("arg0")}}.Build(),
+	}.Build()
 
 	body := &anypb.Any{}
-	require.NoError(t, body.MarshalFrom(&updatepb.Request{Meta: meta, Input: input}))
+	require.NoError(t, body.MarshalFrom(updatepb.Request_builder{Meta: meta, Input: input}.Build()))
 
-	err := weh.ProcessMessage(&protocolpb.Message{
+	err := weh.ProcessMessage(protocolpb.Message_builder{
 		ProtocolInstanceId: t.Name(),
 		Body:               body,
-	}, false, false)
+	}.Build(), false, false)
 	require.NoError(t, err)
 
-	require.Equal(t, input.Name, gotName)
+	require.Equal(t, input.GetName(), gotName)
 	require.Equal(t, t.Name()+"-id", gotID)
-	require.True(t, proto.Equal(input.Header, gotHeader))
-	require.True(t, proto.Equal(input.Args, gotArgs))
+	require.True(t, proto.Equal(input.GetHeader(), gotHeader))
+	require.True(t, proto.Equal(input.GetArgs(), gotArgs))
 
 	require.Panics(t, func() {
-		_ = weh.ProcessMessage(&protocolpb.Message{
+		_ = weh.ProcessMessage(protocolpb.Message_builder{
 			ProtocolInstanceId: t.Name(),
 			Body:               body,
-		}, false, false)
+		}.Build(), false, false)
 	})
 }

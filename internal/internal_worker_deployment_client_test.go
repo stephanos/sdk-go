@@ -41,9 +41,9 @@ func (d *workerDeploymentClientTestSuite) TearDownTest() {
 }
 
 func getListWorkerDeploymentsRequest() *workflowservice.ListWorkerDeploymentsRequest {
-	request := &workflowservice.ListWorkerDeploymentsRequest{
+	request := workflowservice.ListWorkerDeploymentsRequest_builder{
 		Namespace: DefaultNamespace,
-	}
+	}.Build()
 
 	return request
 }
@@ -52,35 +52,35 @@ func getListWorkerDeploymentsRequest() *workflowservice.ListWorkerDeploymentsReq
 
 func (d *workerDeploymentClientTestSuite) TestWorkerDeploymentIterator_NoError() {
 	request1 := getListWorkerDeploymentsRequest()
-	response1 := &workflowservice.ListWorkerDeploymentsResponse{
+	response1 := workflowservice.ListWorkerDeploymentsResponse_builder{
 		WorkerDeployments: []*workflowservice.ListWorkerDeploymentsResponse_WorkerDeploymentSummary{
-			{
+			workflowservice.ListWorkerDeploymentsResponse_WorkerDeploymentSummary_builder{
 				Name: "foo1",
-			},
+			}.Build(),
 		},
 		NextPageToken: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
-	}
+	}.Build()
 	request2 := getListWorkerDeploymentsRequest()
-	request2.NextPageToken = response1.NextPageToken
-	response2 := &workflowservice.ListWorkerDeploymentsResponse{
+	request2.SetNextPageToken(response1.GetNextPageToken())
+	response2 := workflowservice.ListWorkerDeploymentsResponse_builder{
 		WorkerDeployments: []*workflowservice.ListWorkerDeploymentsResponse_WorkerDeploymentSummary{
-			{
+			workflowservice.ListWorkerDeploymentsResponse_WorkerDeploymentSummary_builder{
 				Name: "foo2",
-			},
+			}.Build(),
 		},
 		NextPageToken: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
-	}
+	}.Build()
 
 	request3 := getListWorkerDeploymentsRequest()
-	request3.NextPageToken = response2.NextPageToken
-	response3 := &workflowservice.ListWorkerDeploymentsResponse{
+	request3.SetNextPageToken(response2.GetNextPageToken())
+	response3 := workflowservice.ListWorkerDeploymentsResponse_builder{
 		WorkerDeployments: []*workflowservice.ListWorkerDeploymentsResponse_WorkerDeploymentSummary{
-			{
+			workflowservice.ListWorkerDeploymentsResponse_WorkerDeploymentSummary_builder{
 				Name: "foo3",
-			},
+			}.Build(),
 		},
 		NextPageToken: nil,
-	}
+	}.Build()
 
 	d.service.EXPECT().ListWorkerDeployments(gomock.Any(), request1, gomock.Any()).Return(response1, nil).Times(1)
 	d.service.EXPECT().ListWorkerDeployments(gomock.Any(), request2, gomock.Any()).Return(response2, nil).Times(1)
@@ -98,17 +98,17 @@ func (d *workerDeploymentClientTestSuite) TestWorkerDeploymentIterator_NoError()
 
 func (d *workerDeploymentClientTestSuite) TestWorkerDeploymentIteratorError() {
 	request1 := getListWorkerDeploymentsRequest()
-	response1 := &workflowservice.ListWorkerDeploymentsResponse{
+	response1 := workflowservice.ListWorkerDeploymentsResponse_builder{
 		WorkerDeployments: []*workflowservice.ListWorkerDeploymentsResponse_WorkerDeploymentSummary{
-			{
+			workflowservice.ListWorkerDeploymentsResponse_WorkerDeploymentSummary_builder{
 				Name: "foo1",
-			},
+			}.Build(),
 		},
 		NextPageToken: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
-	}
+	}.Build()
 
 	request2 := getListWorkerDeploymentsRequest()
-	request2.NextPageToken = response1.NextPageToken
+	request2.SetNextPageToken(response1.GetNextPageToken())
 
 	d.service.EXPECT().ListWorkerDeployments(gomock.Any(), request1, gomock.Any()).Return(response1, nil).Times(1)
 
@@ -129,18 +129,18 @@ func (d *workerDeploymentClientTestSuite) TestWorkerDeploymentIteratorError() {
 
 // nil timestamps pass IsZero()
 func (d *workerDeploymentClientTestSuite) TestWorkerDeploymenNilTimestamp() {
-	request := &workflowservice.DescribeWorkerDeploymentRequest{
+	request := workflowservice.DescribeWorkerDeploymentRequest_builder{
 		Namespace:      DefaultNamespace,
 		DeploymentName: "foo",
-	}
+	}.Build()
 
-	response := &workflowservice.DescribeWorkerDeploymentResponse{
+	response := workflowservice.DescribeWorkerDeploymentResponse_builder{
 		ConflictToken: []byte{1, 2, 1, 2, 1, 1, 8},
-		WorkerDeploymentInfo: &deployment.WorkerDeploymentInfo{
+		WorkerDeploymentInfo: deployment.WorkerDeploymentInfo_builder{
 			Name:       "foo",
 			CreateTime: nil,
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	d.service.EXPECT().DescribeWorkerDeployment(gomock.Any(), request, gomock.Any()).Return(response, nil).Times(1)
 

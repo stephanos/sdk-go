@@ -38,7 +38,7 @@ func (e *eagerWorkflowDispatcher) deregisterWorker(worker *workflowWorker) {
 func (e *eagerWorkflowDispatcher) applyToRequest(request *workflowservice.StartWorkflowExecutionRequest) *eagerWorkflowExecutor {
 	// Try every worker that is assigned to the desired task queue.
 	e.lock.RLock()
-	workers := e.workersByTaskQueue[request.GetTaskQueue().Name]
+	workers := e.workersByTaskQueue[request.GetTaskQueue().GetName()]
 	randWorkers := make([]eagerWorker, 0, len(workers))
 	// Copy the workers so we can release the lock.
 	for worker := range workers {
@@ -49,7 +49,7 @@ func (e *eagerWorkflowDispatcher) applyToRequest(request *workflowservice.StartW
 	for _, worker := range randWorkers {
 		maybePermit := worker.tryReserveSlot()
 		if maybePermit != nil {
-			request.RequestEagerExecution = true
+			request.SetRequestEagerExecution(true)
 			// Attach deployment options if worker has deployment versioning enabled
 			deploymentOpts := worker.getDeploymentOptions()
 			if (deploymentOpts.Version != WorkerDeploymentVersion{}) {
@@ -57,11 +57,11 @@ func (e *eagerWorkflowDispatcher) applyToRequest(request *workflowservice.StartW
 				if deploymentOpts.UseVersioning {
 					wvMode = enums.WORKER_VERSIONING_MODE_VERSIONED
 				}
-				request.EagerWorkerDeploymentOptions = &deployment.WorkerDeploymentOptions{
+				request.SetEagerWorkerDeploymentOptions(deployment.WorkerDeploymentOptions_builder{
 					DeploymentName:       deploymentOpts.Version.DeploymentName,
 					BuildId:              deploymentOpts.Version.BuildID,
 					WorkerVersioningMode: wvMode,
-				}
+				}.Build())
 			}
 			return &eagerWorkflowExecutor{
 				worker: worker,

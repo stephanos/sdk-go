@@ -21,12 +21,12 @@ func Test_WorkerVersionSets_fromProtoResponse(t *testing.T) {
 		},
 		{
 			name: "normal sets",
-			response: &workflowservice.GetWorkerBuildIdCompatibilityResponse{
+			response: workflowservice.GetWorkerBuildIdCompatibilityResponse_builder{
 				MajorVersionSets: []*taskqueuepb.CompatibleVersionSet{
-					{BuildIds: []string{"1.0", "1.1"}},
-					{BuildIds: []string{"2.0"}},
+					taskqueuepb.CompatibleVersionSet_builder{BuildIds: []string{"1.0", "1.1"}}.Build(),
+					taskqueuepb.CompatibleVersionSet_builder{BuildIds: []string{"2.0"}}.Build(),
 				},
-			},
+			}.Build(),
 			want: &WorkerBuildIDVersionSets{
 				Sets: []*CompatibleVersionSet{
 					{BuildIDs: []string{"1.0", "1.1"}},

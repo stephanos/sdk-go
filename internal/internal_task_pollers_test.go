@@ -38,17 +38,18 @@ func (wth *countingTaskHandler) ProcessWorkflowTask(
 func TestWFTRacePrevention(t *testing.T) {
 	params := workerExecutionParameters{cache: NewWorkerCache()}
 	ensureRequiredParams(&params)
+	// DO NOT SUBMIT: fix callers to work with a pointer (go/goprotoapi-findings#message-value)
 	var (
-		taskQueue    = taskqueuepb.TaskQueue{Name: t.Name() + "task-queue"}
-		startedAttrs = historypb.WorkflowExecutionStartedEventAttributes{
+		taskQueue    = taskqueuepb.TaskQueue_builder{Name: t.Name() + "task-queue"}.Build()
+		startedAttrs = historypb.WorkflowExecutionStartedEventAttributes_builder{
 			TaskQueue: &taskQueue,
-		}
+		}.Build()
 		startedEvent     = createTestEventWorkflowExecutionStarted(1, &startedAttrs)
-		history          = historypb.History{Events: []*historypb.HistoryEvent{startedEvent}}
+		history          = historypb.History_builder{Events: []*historypb.HistoryEvent{startedEvent}}.Build()
 		runID            = t.Name() + "-run-id"
 		wfID             = t.Name() + "-workflow-id"
-		wfe              = commonpb.WorkflowExecution{RunId: runID, WorkflowId: wfID}
-		wfType           = commonpb.WorkflowType{Name: t.Name() + "-workflow-type"}
+		wfe              = commonpb.WorkflowExecution_builder{RunId: runID, WorkflowId: wfID}.Build()
+		wfType           = commonpb.WorkflowType_builder{Name: t.Name() + "-workflow-type"}.Build()
 		ctrl             = gomock.NewController(t)
 		client           = workflowservicemock.NewMockWorkflowServiceClient(ctrl)
 		resultsChan      = make(chan error, 2)
@@ -57,7 +58,7 @@ func TestWFTRacePrevention(t *testing.T) {
 		contextManager   = taskHandler
 		codec            = binary.LittleEndian
 		completionChans  = []chan struct{}{make(chan struct{}), make(chan struct{})}
-		pollResp0        = workflowservice.PollWorkflowTaskQueueResponse{
+		pollResp0        = workflowservice.PollWorkflowTaskQueueResponse_builder{
 			Attempt:           1,
 			WorkflowExecution: &wfe,
 			WorkflowType:      &wfType,
@@ -66,14 +67,14 @@ func TestWFTRacePrevention(t *testing.T) {
 			// pollResp1 below. The mock will use this as an index into
 			// `completionChans` (above) to get a task-specific control channel.
 			TaskToken: codec.AppendUint32(nil, 0),
-		}
-		pollResp1 = workflowservice.PollWorkflowTaskQueueResponse{
+		}.Build()
+		pollResp1 = workflowservice.PollWorkflowTaskQueueResponse_builder{
 			Attempt:           1,
 			WorkflowExecution: &wfe,
 			WorkflowType:      &wfType,
 			History:           &history,
 			TaskToken:         codec.AppendUint32(nil, 1),
-		}
+		}.Build()
 		task0 = workflowTask{task: &pollResp0}
 		task1 = workflowTask{task: &pollResp1}
 	)
@@ -89,7 +90,7 @@ func TestWFTRacePrevention(t *testing.T) {
 		) (*workflowservice.RespondWorkflowTaskFailedResponse, error) {
 			// find the appropriate channel for this task - the index is encoded
 			// into the TaskToken
-			ch := completionChans[int(codec.Uint32(req.TaskToken))]
+			ch := completionChans[int(codec.Uint32(req.GetTaskToken()))]
 			<-ch
 			// these two reads ^v allow the test code to capture a task processing
 			// goroutine exactly here
@@ -132,25 +133,26 @@ func TestWFTCorruption(t *testing.T) {
 	cache := NewWorkerCache()
 	params := workerExecutionParameters{cache: cache}
 	ensureRequiredParams(&params)
-	wfType := commonpb.WorkflowType{Name: t.Name() + "-workflow-type"}
+	wfType := commonpb.WorkflowType_builder{Name: t.Name() + "-workflow-type"}.Build()
 	reg := newRegistry()
 	reg.RegisterWorkflowWithOptions(func(ctx Context) error {
 		return Await(ctx, func() bool {
 			return false
 		})
 	}, RegisterWorkflowOptions{
-		Name: wfType.Name,
+		Name: wfType.GetName(),
 	})
+	// DO NOT SUBMIT: fix callers to work with a pointer (go/goprotoapi-findings#message-value)
 	var (
-		taskQueue    = taskqueuepb.TaskQueue{Name: t.Name() + "task-queue"}
-		startedAttrs = historypb.WorkflowExecutionStartedEventAttributes{
+		taskQueue    = taskqueuepb.TaskQueue_builder{Name: t.Name() + "task-queue"}.Build()
+		startedAttrs = historypb.WorkflowExecutionStartedEventAttributes_builder{
 			TaskQueue: &taskQueue,
-		}
+		}.Build()
 		startedEvent     = createTestEventWorkflowExecutionStarted(1, &startedAttrs)
-		history          = historypb.History{Events: []*historypb.HistoryEvent{startedEvent}}
+		history          = historypb.History_builder{Events: []*historypb.HistoryEvent{startedEvent}}.Build()
 		runID            = t.Name() + "-run-id"
 		wfID             = t.Name() + "-workflow-id"
-		wfe              = commonpb.WorkflowExecution{RunId: runID, WorkflowId: wfID}
+		wfe              = commonpb.WorkflowExecution_builder{RunId: runID, WorkflowId: wfID}.Build()
 		ctrl             = gomock.NewController(t)
 		client           = workflowservicemock.NewMockWorkflowServiceClient(ctrl)
 		innerTaskHandler = newWorkflowTaskHandler(params, nil, reg)
@@ -158,16 +160,16 @@ func TestWFTCorruption(t *testing.T) {
 		contextManager   = taskHandler
 		completionChans  = []chan struct{}{make(chan struct{}), make(chan struct{})}
 		codec            = binary.LittleEndian
-		pollResp0        = workflowservice.PollWorkflowTaskQueueResponse{
+		pollResp0        = workflowservice.PollWorkflowTaskQueueResponse_builder{
 			Attempt:           1,
 			WorkflowExecution: &wfe,
-			WorkflowType:      &wfType,
+			WorkflowType:      wfType,
 			History:           &history,
 			// encode the task pseudo-ID into the token; 0 here and 1 for
 			// pollResp1 below. The mock will use this as an index into
 			// `completionChans` (above) to get a task-specific control channel.
 			TaskToken: codec.AppendUint32(nil, 0),
-		}
+		}.Build()
 		task0 = workflowTask{task: &pollResp0}
 	)
 
@@ -180,7 +182,7 @@ func TestWFTCorruption(t *testing.T) {
 		) (*workflowservice.RespondWorkflowTaskCompletedResponse, error) {
 			// find the appropriate channel for this task - the index is encoded
 			// into the TaskToken
-			ch := completionChans[int(codec.Uint32(req.TaskToken))]
+			ch := completionChans[int(codec.Uint32(req.GetTaskToken()))]
 			<-ch
 			// these two reads ^v allow the test code to capture a task processing
 			// goroutine exactly here
@@ -209,7 +211,7 @@ func TestWFTReset(t *testing.T) {
 		cache: cache,
 	}
 	ensureRequiredParams(&params)
-	wfType := commonpb.WorkflowType{Name: t.Name() + "-workflow-type"}
+	wfType := commonpb.WorkflowType_builder{Name: t.Name() + "-workflow-type"}.Build()
 	reg := newRegistry()
 	reg.RegisterWorkflowWithOptions(func(ctx Context) error {
 		_ = SetUpdateHandler(ctx, "update", func(ctx Context) error {
@@ -222,109 +224,110 @@ func TestWFTReset(t *testing.T) {
 		_ = Sleep(ctx, time.Second)
 		return Sleep(ctx, time.Second)
 	}, RegisterWorkflowOptions{
-		Name: wfType.Name,
+		Name: wfType.GetName(),
 	})
+	// DO NOT SUBMIT: fix callers to work with a pointer (go/goprotoapi-findings#message-value)
 	var (
-		taskQueue = taskqueuepb.TaskQueue{Name: t.Name() + "task-queue"}
-		history0  = historypb.History{Events: []*historypb.HistoryEvent{
-			createTestEventWorkflowExecutionStarted(1, &historypb.WorkflowExecutionStartedEventAttributes{
+		taskQueue = taskqueuepb.TaskQueue_builder{Name: t.Name() + "task-queue"}.Build()
+		history0  = historypb.History_builder{Events: []*historypb.HistoryEvent{
+			createTestEventWorkflowExecutionStarted(1, historypb.WorkflowExecutionStartedEventAttributes_builder{
 				TaskQueue: &taskQueue,
-			}),
-			createTestEventWorkflowTaskScheduled(2, &historypb.WorkflowTaskScheduledEventAttributes{
+			}.Build()),
+			createTestEventWorkflowTaskScheduled(2, historypb.WorkflowTaskScheduledEventAttributes_builder{
 				TaskQueue:           &taskQueue,
 				StartToCloseTimeout: &durationpb.Duration{Seconds: 10},
 				Attempt:             1,
-			}),
+			}.Build()),
 			createTestEventWorkflowTaskStarted(3),
-			createTestEventWorkflowTaskCompleted(4, &historypb.WorkflowTaskCompletedEventAttributes{
+			createTestEventWorkflowTaskCompleted(4, historypb.WorkflowTaskCompletedEventAttributes_builder{
 				ScheduledEventId: 2,
 				StartedEventId:   3,
-			}),
+			}.Build()),
 			createTestEventTimerStarted(5, 5),
-			createTestEventWorkflowTaskScheduled(6, &historypb.WorkflowTaskScheduledEventAttributes{
+			createTestEventWorkflowTaskScheduled(6, historypb.WorkflowTaskScheduledEventAttributes_builder{
 				TaskQueue:           &taskQueue,
 				StartToCloseTimeout: &durationpb.Duration{Seconds: 10},
 				Attempt:             1,
-			}),
+			}.Build()),
 			createTestEventWorkflowTaskStarted(7),
-		}}
+		}}.Build()
 		messages = []*protocolpb.Message{
-			createTestProtocolMessageUpdateRequest("test-update", 6, &update.Request{
-				Meta: &update.Meta{
+			createTestProtocolMessageUpdateRequest("test-update", 6, update.Request_builder{
+				Meta: update.Meta_builder{
 					UpdateId: "test-update",
-				},
-				Input: &update.Input{
+				}.Build(),
+				Input: update.Input_builder{
 					Name: "update",
-				},
-			}),
+				}.Build(),
+			}.Build()),
 		}
-		history1 = historypb.History{Events: []*historypb.HistoryEvent{
-			createTestEventWorkflowTaskCompleted(4, &historypb.WorkflowTaskCompletedEventAttributes{
+		history1 = historypb.History_builder{Events: []*historypb.HistoryEvent{
+			createTestEventWorkflowTaskCompleted(4, historypb.WorkflowTaskCompletedEventAttributes_builder{
 				ScheduledEventId: 2,
 				StartedEventId:   3,
-			}),
+			}.Build()),
 			createTestEventTimerStarted(5, 5),
-			createTestEventWorkflowTaskScheduled(6, &historypb.WorkflowTaskScheduledEventAttributes{
+			createTestEventWorkflowTaskScheduled(6, historypb.WorkflowTaskScheduledEventAttributes_builder{
 				TaskQueue:           &taskQueue,
 				StartToCloseTimeout: &durationpb.Duration{Seconds: 10},
 				Attempt:             1,
-			}),
+			}.Build()),
 			createTestEventWorkflowTaskStarted(7),
-		}}
-		history2 = historypb.History{Events: []*historypb.HistoryEvent{
-			createTestEventWorkflowTaskCompleted(4, &historypb.WorkflowTaskCompletedEventAttributes{
+		}}.Build()
+		history2 = historypb.History_builder{Events: []*historypb.HistoryEvent{
+			createTestEventWorkflowTaskCompleted(4, historypb.WorkflowTaskCompletedEventAttributes_builder{
 				ScheduledEventId: 2,
 				StartedEventId:   3,
-			}),
+			}.Build()),
 			createTestEventTimerStarted(5, 5),
 			createTestEventTimerFired(6, 5),
-			createTestEventWorkflowTaskScheduled(7, &historypb.WorkflowTaskScheduledEventAttributes{
+			createTestEventWorkflowTaskScheduled(7, historypb.WorkflowTaskScheduledEventAttributes_builder{
 				TaskQueue:           &taskQueue,
 				StartToCloseTimeout: &durationpb.Duration{Seconds: 10},
 				Attempt:             1,
-			}),
+			}.Build()),
 			createTestEventWorkflowTaskStarted(8),
-		}}
+		}}.Build()
 		runID            = t.Name() + "-run-id"
 		wfID             = t.Name() + "-workflow-id"
-		wfe              = commonpb.WorkflowExecution{RunId: runID, WorkflowId: wfID}
+		wfe              = commonpb.WorkflowExecution_builder{RunId: runID, WorkflowId: wfID}.Build()
 		ctrl             = gomock.NewController(t)
 		client           = workflowservicemock.NewMockWorkflowServiceClient(ctrl)
 		innerTaskHandler = newWorkflowTaskHandler(params, nil, reg)
 		taskHandler      = &countingTaskHandler{WorkflowTaskHandler: innerTaskHandler}
 		contextManager   = taskHandler
-		pollResp0        = workflowservice.PollWorkflowTaskQueueResponse{
+		pollResp0        = workflowservice.PollWorkflowTaskQueueResponse_builder{
 			Attempt:                1,
 			WorkflowExecution:      &wfe,
-			WorkflowType:           &wfType,
+			WorkflowType:           wfType,
 			History:                &history0,
 			Messages:               messages,
 			PreviousStartedEventId: 3,
-		}
+		}.Build()
 		task0     = workflowTask{task: &pollResp0}
-		pollResp1 = workflowservice.PollWorkflowTaskQueueResponse{
+		pollResp1 = workflowservice.PollWorkflowTaskQueueResponse_builder{
 			Attempt:                1,
 			WorkflowExecution:      &wfe,
-			WorkflowType:           &wfType,
+			WorkflowType:           wfType,
 			History:                &history1,
 			PreviousStartedEventId: 3,
-		}
+		}.Build()
 		task1     = workflowTask{task: &pollResp1}
-		pollResp2 = workflowservice.PollWorkflowTaskQueueResponse{
+		pollResp2 = workflowservice.PollWorkflowTaskQueueResponse_builder{
 			Attempt:                1,
 			WorkflowExecution:      &wfe,
-			WorkflowType:           &wfType,
+			WorkflowType:           wfType,
 			History:                &history2,
 			PreviousStartedEventId: 3,
-		}
+		}.Build()
 		task2 = workflowTask{task: &pollResp2}
 	)
 
 	// Return a workflow task to reset the workflow to a previous state
 	client.EXPECT().RespondWorkflowTaskCompleted(gomock.Any(), gomock.Any()).
-		Return(&workflowservice.RespondWorkflowTaskCompletedResponse{
+		Return(workflowservice.RespondWorkflowTaskCompletedResponse_builder{
 			ResetHistoryEventId: 3,
-		}, nil).Times(3)
+		}.Build(), nil).Times(3)
 	// Return a workflow task to complete the workflow
 	client.EXPECT().RespondWorkflowTaskCompleted(gomock.Any(), gomock.Any()).
 		Return(&workflowservice.RespondWorkflowTaskCompletedResponse{}, nil)
@@ -370,36 +373,37 @@ func TestWFTPanicInTaskHandler(t *testing.T) {
 	cache := NewWorkerCache()
 	params := workerExecutionParameters{cache: cache}
 	ensureRequiredParams(&params)
-	wfType := commonpb.WorkflowType{Name: t.Name() + "-workflow-type"}
+	wfType := commonpb.WorkflowType_builder{Name: t.Name() + "-workflow-type"}.Build()
 	reg := newRegistry()
 	reg.RegisterWorkflowWithOptions(func(ctx Context) error {
 		return nil
 	}, RegisterWorkflowOptions{
-		Name: wfType.Name,
+		Name: wfType.GetName(),
 	})
+	// DO NOT SUBMIT: fix callers to work with a pointer (go/goprotoapi-findings#message-value)
 	var (
-		taskQueue    = taskqueuepb.TaskQueue{Name: t.Name() + "task-queue"}
-		startedAttrs = historypb.WorkflowExecutionStartedEventAttributes{
+		taskQueue    = taskqueuepb.TaskQueue_builder{Name: t.Name() + "task-queue"}.Build()
+		startedAttrs = historypb.WorkflowExecutionStartedEventAttributes_builder{
 			TaskQueue: &taskQueue,
-		}
+		}.Build()
 		startedEvent     = createTestEventWorkflowExecutionStarted(1, &startedAttrs)
-		history          = historypb.History{Events: []*historypb.HistoryEvent{startedEvent}}
+		history          = historypb.History_builder{Events: []*historypb.HistoryEvent{startedEvent}}.Build()
 		runID            = t.Name() + "-run-id"
 		wfID             = t.Name() + "-workflow-id"
-		wfe              = commonpb.WorkflowExecution{RunId: runID, WorkflowId: wfID}
+		wfe              = commonpb.WorkflowExecution_builder{RunId: runID, WorkflowId: wfID}.Build()
 		ctrl             = gomock.NewController(t)
 		client           = workflowservicemock.NewMockWorkflowServiceClient(ctrl)
 		innerTaskHandler = newWorkflowTaskHandler(params, nil, newRegistry())
 		taskHandler      = &panickingTaskHandler{WorkflowTaskHandler: innerTaskHandler}
 		contextManager   = taskHandler
 		codec            = binary.LittleEndian
-		pollResp0        = workflowservice.PollWorkflowTaskQueueResponse{
+		pollResp0        = workflowservice.PollWorkflowTaskQueueResponse_builder{
 			Attempt:           1,
 			WorkflowExecution: &wfe,
-			WorkflowType:      &wfType,
+			WorkflowType:      wfType,
 			History:           &history,
 			TaskToken:         codec.AppendUint32(nil, 0),
-		}
+		}.Build()
 		task0 = workflowTask{task: &pollResp0}
 	)
 
